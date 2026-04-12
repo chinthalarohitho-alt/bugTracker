@@ -35,13 +35,13 @@ export default function GlobalHeader({
 
   const handleNotificationClick = async (n) => {
     setShowNotifications(false);
-    await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) });
+    await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) });
     fetchNotifications();
     router.push(`/bugs?bug=${n.bugId}`);
   };
 
   const handleMarkAllRead = async () => {
-    await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allForUser: currentReporter }) });
+    await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allForUser: currentReporter }) });
     fetchNotifications();
   };
 

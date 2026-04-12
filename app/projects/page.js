@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { FolderKanban, AlertCircle, CheckCircle2, Clock, ArrowRight, MoreVertical, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import GlobalHeader from '../components/GlobalHeader';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function ProjectsPage() {
   const [bugs, setBugs] = useState([]);
@@ -53,7 +54,7 @@ export default function ProjectsPage() {
     router.push(`/bugs?project=${encodeURIComponent(projectName)}`);
   };
 
-  if (loading) return <div className="loading-screen">Loading projects...</div>;
+  if (loading) return <LoadingOverlay message="Project Portfolios" subtext="Aggregating health metrics and resolution progress..." />;
 
   const statsList = projects.map(project => ({
     name: project,
@@ -61,7 +62,7 @@ export default function ProjectsPage() {
   }));
 
   return (
-    <main style={{ padding: '20px', backgroundColor: 'var(--color-bg-body)', minHeight: '100vh' }}>
+    <main style={{ padding: '20px 20px 80px', backgroundColor: 'var(--color-bg-body)', minHeight: '100vh' }}>
       <div style={{ marginBottom: '16px' }}>
         <GlobalHeader
           placeholder="Search projects..."

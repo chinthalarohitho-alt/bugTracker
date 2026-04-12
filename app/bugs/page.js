@@ -1,12 +1,14 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
-import { Plus, Bug as BugIcon, Edit3, Trash2, Search, Download, Link2, ChevronDown, Check, X, Bell, ExternalLink, MailOpen } from 'lucide-react';
+import { Plus, Bug as BugIcon, Edit3, Trash2, Search, Download, Link2, ChevronDown, Check, X, Bell, ExternalLink, MailOpen, Calendar, ArrowUpDown } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import BugForm from '../components/BugForm';
 import BugDetails from '../components/BugDetails';
 import CustomDropdown from '../components/CustomDropdown';
 import { useAuth } from '../components/AuthProvider';
 import GlobalHeader from '../components/GlobalHeader';
+import LoadingOverlay from '../components/LoadingOverlay';
+import AdvancedDateFilter from '../components/AdvancedDateFilter';
 
 
 function BugManagement() {
@@ -27,6 +29,9 @@ function BugManagement() {
   const [selectedPriority, setSelectedPriority] = useState([]);
   const [selectedAssignee, setSelectedAssignee] = useState([]);
   const [selectedReporter, setSelectedReporter] = useState([]);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [sortOrder, setSortOrder] = useState('desc'); // Current UI view sort
   const [toast, setToast] = useState({ message: "", visible: false });
   const [deletingBug, setDeletingBug] = useState(null);
 
@@ -88,6 +93,25 @@ function BugManagement() {
     });
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [bugs, settings.assignees]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+        const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+        const isEditable = document.activeElement.isContentEditable;
+        if (!isInput && !isEditable) {
+          e.preventDefault();
+          setEditingBug(null);
+          setIsFormOpen(true);
+        }
+      }
+      if (e.key === 'Escape' && isFormOpen) {
+        setIsFormOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFormOpen]);
 
   const showToast = (message) => {
     if (window.toastTimer) clearTimeout(window.toastTimer);
@@ -170,8 +194,27 @@ function BugManagement() {
         String(b.id || '').toLowerCase().includes(q)
       );
     }
+    
+    // Date Filtering
+    if (startDate) {
+      const s = new Date(startDate);
+      result = result.filter(b => new Date(b.createdAt) >= s);
+    }
+    if (endDate) {
+      const e = new Date(endDate);
+      e.setHours(23, 59, 59, 999);
+      result = result.filter(b => new Date(b.createdAt) <= e);
+    }
+
+    // Sorting
+    result = [...result].sort((a, b) => {
+      const dateA = new Date(a.createdAt);
+      const dateB = new Date(b.createdAt);
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+
     setFilteredBugs(result);
-  }, [bugs, selectedProjects, selectedStatus, selectedPriority, selectedAssignee, selectedReporter, globalSearchQuery]);
+  }, [bugs, selectedProjects, selectedStatus, selectedPriority, selectedAssignee, selectedReporter, globalSearchQuery, startDate, endDate, sortOrder]);
 
   const handleSaveBug = async (bugData, isNew) => {
     if (isNew) {
@@ -310,10 +353,21 @@ function BugManagement() {
   };
 
   const downloadCSV = () => {
-    const columns = ['id', 'title', 'description', 'status', 'priority', 'severity', 'project', 'assignee', 'reporter', 'createdAt'];
+    // Columns as requested: including steps, curl, and pr
+    const columns = ['id', 'title', 'description', 'stepsToReproduce', 'curl', 'githubPr', 'status', 'priority', 'severity', 'project', 'assignee', 'reporter', 'createdAt'];
     const header = columns.join(',');
-    const escape = (val) => `"${String(val || '').replace(/"/g, '""')}"`;
-    const rows = filteredBugs.map(bug => columns.map(col => escape(bug[col])).join(','));
+    
+    const escape = (val) => {
+      if (Array.isArray(val)) {
+        return `"${val.join(' | ').replace(/"/g, '""')}"`;
+      }
+      return `"${String(val || '').replace(/"/g, '""')}"`;
+    };
+
+    // Sort by createdAt ASCENDING for CSV as requested
+    const sortedForExport = [...filteredBugs].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    const rows = sortedForExport.map(bug => columns.map(col => escape(bug[col])).join(','));
     const csv = [header, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -321,7 +375,7 @@ function BugManagement() {
     link.href = url;
     link.download = `bugs_export_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    showToast(`Exported ${filteredBugs.length} bug(s) to CSV!`);
+    showToast(`Exported ${filteredBugs.length} bug(s) to CSV (Oldest first)!`);
   };
 
   const toggleFilter = (current, setFunc, value) => {
@@ -342,6 +396,8 @@ function BugManagement() {
     setSelectedPriority([]);
     setSelectedAssignee([]);
     setSelectedReporter([]);
+    setStartDate("");
+    setEndDate("");
     setGlobalSearchQuery("");
     showToast("All filters cleared!");
   };
@@ -353,24 +409,31 @@ function BugManagement() {
     return `BUG-${segment.substring(0, 4).toUpperCase()}`;
   };
 
-  if (loading) return <div>Loading bug reports...</div>;
+  if (loading) return <LoadingOverlay message="Synchronizing Bugs" subtext="Accessing the latest bug streams and team analytics..." />;
 
   return (
     <div style={{
       width: '100%',
-      padding: '0 20px',
+      padding: '0 20px 120px',
       backgroundColor: 'var(--color-bg-body)',
       minHeight: '100vh',
       animation: 'fadeIn 0.4s ease-out'
     }}>
-      {/* Sticky header section */}
+      {/* Sticky header section with premium blur */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        backgroundColor: 'var(--color-bg-body)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: 'rgba(241, 245, 249, 0.9)', // var(--color-bg-body) with alpha
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         paddingTop: '20px',
-        paddingBottom: '8px',
-        marginBottom: '0',
-        borderBottom: '1px solid var(--color-border-light)'
+        paddingBottom: '16px',
+        margin: '0 -20px',
+        paddingLeft: '20px',
+        paddingRight: '20px',
+        borderBottom: '1px solid var(--color-border)',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
       }}>
         {/* Top bar: Global Header with Search & Notifications */}
         <GlobalHeader
@@ -402,15 +465,36 @@ function BugManagement() {
           </button>
         </div>
 
-        <div className="filter-bar-group" style={{ marginBottom: '0' }}>
+        <div className="filter-bar-group" style={{ marginBottom: '16px', width: 'auto', display: 'inline-flex' }}>
           <CustomDropdown label="All Reporter" options={reporterOptions} selected={selectedReporter} onSelect={(val) => toggleFilter(selectedReporter, setSelectedReporter, val)} isMulti />
           <CustomDropdown label="All Project" options={settings.projects} selected={selectedProjects} onSelect={(val) => toggleFilter(selectedProjects, setSelectedProjects, val)} isMulti />
           <CustomDropdown label="All Status" options={settings.statuses} selected={selectedStatus} onSelect={(val) => toggleFilter(selectedStatus, setSelectedStatus, val)} isMulti />
           <CustomDropdown label="All Priority" options={settings.priorities} selected={selectedPriority} onSelect={(val) => toggleFilter(selectedPriority, setSelectedPriority, val)} isMulti />
           <CustomDropdown label="All Assignee" options={settings.assignees} selected={selectedAssignee} onSelect={(val) => toggleFilter(selectedAssignee, setSelectedAssignee, val)} isMulti />
-          <button className="btn btn-outline" style={{ height: '36px', width: '36px', padding: '0', background: 'white' }} onClick={downloadCSV} title="Export to CSV">
-            <Download size={18} />
-          </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', paddingLeft: '12px', borderLeft: '1px solid var(--color-border)' }}>
+            <button
+              className="btn btn-outline"
+              onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+              style={{ height: '36px', padding: '0 12px', background: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: '700', color: 'var(--color-primary)', borderRadius: '8px' }}
+              title={sortOrder === 'desc' ? "Newest First" : "Oldest First"}
+            >
+              <ArrowUpDown size={15} /> {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+            </button>
+
+            <button 
+              className="btn btn-outline" 
+              style={{ height: '36px', padding: '0 12px', background: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: '700', borderRadius: '8px' }} 
+              onClick={downloadCSV} 
+              title="Export to CSV"
+            >
+              <Download size={16} /> Download as CSV
+            </button>
+          </div>
+        </div>{/* end filter-bar-group */}
+
+        {/* Action Hub Row (Specialized Tools) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
           <button
             className="btn btn-outline"
             title="Multi Delete"
@@ -419,19 +503,28 @@ function BugManagement() {
               if (selectionMode) { setSelectedBugs(new Set()); setShowSelectionPopup(false); }
             }}
             style={{
-              height: '36px', padding: '0 12px', background: selectionMode ? '#fef2f2' : 'white',
+              height: '38px', padding: '0 16px', background: selectionMode ? '#fef2f2' : 'white',
               color: selectionMode ? '#ef4444' : 'var(--color-text-muted)',
               border: selectionMode ? '1px solid #fee2e2' : '1px solid #e2e8f0',
-              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: '600',
-              transition: 'all 0.2s'
+              display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '700',
+              transition: 'all 0.2s', borderRadius: '10px'
             }}
           >
-            <Trash2 size={15} /> Multi Delete
+            <Trash2 size={16} /> Multi Delete
           </button>
-        </div>{/* end filter-bar-group */}
+
+          <AdvancedDateFilter 
+            startDate={startDate} 
+            endDate={endDate} 
+            onRangeChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }} 
+          />
+        </div>
 
         {/* Active Filter Chips */}
-        {(selectedProjects.length > 0 || selectedStatus.length > 0 || selectedPriority.length > 0 || selectedAssignee.length > 0 || selectedReporter.length > 0 || globalSearchQuery) && (
+        {(selectedProjects.length > 0 || selectedStatus.length > 0 || selectedPriority.length > 0 || selectedAssignee.length > 0 || selectedReporter.length > 0 || globalSearchQuery || startDate || endDate) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
             {globalSearchQuery && (
               <span className="filter-chip">
@@ -469,6 +562,12 @@ function BugManagement() {
                 <button onClick={() => toggleFilter(selectedReporter, setSelectedReporter, r)}><X size={12} strokeWidth={3} /></button>
               </span>
             ))}
+            {(startDate || endDate) && (
+              <span className="filter-chip">
+                Date: {startDate || '...'} to {endDate || '...'}
+                <button onClick={() => { setStartDate(""); setEndDate(""); }}><X size={12} strokeWidth={3} /></button>
+              </span>
+            )}
             <button onClick={handleClearFilters} className="clear-all-btn">Clear All</button>
           </div>
         )}
@@ -648,47 +747,53 @@ function BugManagement() {
               </div>
             )}
 
-            {/* Action Bar */}
-            <div style={{
-              position: 'fixed', bottom: '40px', left: '50%', transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(255, 255, 255, 0.85)', color: '#0f172a', padding: '12px 24px', borderRadius: '20px',
-              display: 'flex', alignItems: 'center', gap: '20px', zIndex: 7000,
-              backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(226, 232, 240, 0.8)',
-              boxShadow: '0 20px 40px -8px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0,0,0,0.02)',
-              animation: 'popIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards'
-            }}>
-              <span onClick={() => setShowSelectionPopup(v => !v)} style={{
-                fontWeight: '700', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '10px',
-                cursor: 'pointer', userSelect: 'none'
+            {/* Centered Action Bar Container */}
+            {selectionMode && selectedBugs.size > 0 && (
+              <div style={{
+                position: 'fixed', bottom: '40px', left: '260px', right: '0',
+                display: 'flex', justifyContent: 'center', zIndex: 7000, pointerEvents: 'none'
               }}>
                 <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: '24px', height: '24px', borderRadius: '8px',
-                  backgroundColor: 'var(--color-primary)', color: 'white',
-                  fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(37,99,235,0.3)'
+                  backgroundColor: 'rgba(255, 255, 255, 0.85)', color: '#0f172a', padding: '12px 24px', borderRadius: '20px',
+                  display: 'flex', alignItems: 'center', gap: '20px', pointerEvents: 'auto',
+                  backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(226, 232, 240, 0.8)',
+                  boxShadow: '0 20px 40px -8px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0,0,0,0.02)',
+                  animation: 'popIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards'
                 }}>
-                  {selectedBugs.size}
+                  <span onClick={() => setShowSelectionPopup(v => !v)} style={{
+                    fontWeight: '700', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '10px',
+                    cursor: 'pointer', userSelect: 'none'
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '24px', height: '24px', borderRadius: '8px',
+                      backgroundColor: 'var(--color-primary)', color: 'white',
+                      fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(37,99,235,0.3)'
+                    }}>
+                      {selectedBugs.size}
+                    </div>
+                    Selected
+                    <ChevronDown size={14} style={{ color: '#64748b', transform: showSelectionPopup ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+                  </span>
+                  <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
+                  <button style={{
+                    color: '#ef4444', fontWeight: '700', fontSize: '0.9rem',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    padding: '6px 14px', borderRadius: '10px',
+                    backgroundColor: '#fef2f2', transition: 'all 0.2s', border: '1px solid #fee2e2'
+                  }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'} onClick={handleBulkDelete}>
+                    <Trash2 size={16} /> Delete
+                  </button>
+                  <button style={{
+                    color: '#64748b', fontSize: '0.9rem', fontWeight: '600',
+                    padding: '6px 12px', borderRadius: '10px', transition: 'all 0.2s'
+                  }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} onClick={() => { setSelectedBugs(new Set()); setShowSelectionPopup(false); setSelectionMode(false); }}>
+                    Cancel
+                  </button>
                 </div>
-                Selected
-                <ChevronDown size={14} style={{ color: '#64748b', transform: showSelectionPopup ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-              </span>
-              <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
-              <button style={{
-                color: '#ef4444', fontWeight: '700', fontSize: '0.9rem',
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '6px 14px', borderRadius: '10px',
-                backgroundColor: '#fef2f2', transition: 'all 0.2s', border: '1px solid #fee2e2'
-              }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'} onClick={handleBulkDelete}>
-                <Trash2 size={16} /> Delete
-              </button>
-              <button style={{
-                color: '#64748b', fontSize: '0.9rem', fontWeight: '600',
-                padding: '6px 12px', borderRadius: '10px', transition: 'all 0.2s'
-              }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} onClick={() => { setSelectedBugs(new Set()); setShowSelectionPopup(false); setSelectionMode(false); }}>
-                Cancel
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>{/* end scrollable list */}
@@ -748,7 +853,7 @@ function BugManagement() {
 
 export default function BugManagementPage() {
   return (
-    <Suspense fallback={<div>Loading modules...</div>}>
+    <Suspense fallback={<LoadingOverlay message="Loading Modules" subtext="Preparing project-specific components..." />}>
       <BugManagement />
     </Suspense>
   );

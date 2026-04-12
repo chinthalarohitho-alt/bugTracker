@@ -4,6 +4,7 @@ import { useAuth } from './components/AuthProvider';
 import { Bug, ArrowRight, User, GitPullRequest, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import GlobalHeader from './components/GlobalHeader';
+import LoadingOverlay from './components/LoadingOverlay';
 
 export default function DashboardPage() {
   const [bugs, setBugs] = useState([]);
@@ -48,10 +49,10 @@ export default function DashboardPage() {
     };
   }, [bugs, currentReporter]);
 
-  if (loading) return <div className="loading-screen">Preparing mission control...</div>;
+  if (loading) return <LoadingOverlay message="Preparing Mission Control" subtext="Analyzing team performance and bug priority..." />;
 
   return (
-    <main style={{ padding: '20px 40px 40px', maxWidth: '1400px', margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
+    <main style={{ padding: '20px 40px 80px', maxWidth: '1400px', margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
       <div style={{ marginBottom: '24px' }}>
         <GlobalHeader />
       </div>

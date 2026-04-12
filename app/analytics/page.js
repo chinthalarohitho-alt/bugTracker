@@ -5,6 +5,7 @@ import { BarChart3, TrendingUp, AlertTriangle, CheckCircle2, Projector, User, Ca
 import { arc } from 'd3-shape';
 import { animate, motion } from 'framer-motion';
 import GlobalHeader from '../components/GlobalHeader';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 const AnimatedPath = ({ item, startAngle, endAngle, pathGenerator, tooltip, setTooltip }) => {
   // Start from 0 to create a "sweep-in" intro animation from the top (0 rad)
@@ -541,7 +542,7 @@ export default function AnalyticsPage() {
     };
   };
 
-  if (loading) return <div className="loading-screen">Analyzing bug data...</div>;
+  if (loading) return <LoadingOverlay message="Analyzing Bug Data" subtext="Synthesizing trend reports and project heatmaps..." />;
 
   const stats = calculateStats();
 
@@ -589,7 +590,7 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <main style={{ padding: '20px', backgroundColor: 'var(--color-bg-body)', minHeight: '100vh' }}>
+    <main style={{ padding: '20px 20px 80px', backgroundColor: 'var(--color-bg-body)', minHeight: '100vh' }}>
       <div style={{ marginBottom: '16px' }}>
         <GlobalHeader 
           placeholder="Search analytics..." 

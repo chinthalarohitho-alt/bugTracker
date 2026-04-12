@@ -17,7 +17,7 @@ export default function Sidebar() {
           <Bug size={22} strokeWidth={2.5} />
         </div>
         <div className="sidebar-brand" style={{ marginLeft: '1px' }}>
-          Tapza BugTracker
+          Tapza Bug portal
         </div>
       </div>
 

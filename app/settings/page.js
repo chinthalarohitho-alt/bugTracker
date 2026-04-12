@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Users, Activity, Signal, Folder, Settings, ShieldCheck, ChevronRight } from 'lucide-react';
 import GlobalHeader from '../components/GlobalHeader';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({ assignees: [], statuses: [], priorities: [], projects: [] });
@@ -16,24 +17,48 @@ export default function SettingsPage() {
   }, []);
 
   const handleAdd = async (category) => {
-    if (!newInputs[category].trim()) return;
+    const value = newInputs[category].trim();
+    if (!value) return;
+    
+    // Check for duplicates
+    if ((settings[category] || []).includes(value)) {
+      alert(`This ${category.slice(0, -1)} already exists!`);
+      return;
+    }
+
     const currentList = Array.isArray(settings[category]) ? settings[category] : [];
     const updatedSettings = {
       ...settings,
-      [category]: [...currentList, newInputs[category].trim()]
+      [category]: [...currentList, value]
     };
 
     setSettings(updatedSettings);
     setNewInputs({ ...newInputs, [category]: "" });
 
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedSettings)
-    });
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSettings)
+      });
+    } catch (e) {
+      console.error("Failed to add settings item:", e);
+    }
   };
 
   const handleDelete = async (category, index) => {
+    const itemToDelete = settings[category][index];
+    
+    // Safety guard for system-reserved profiles
+    if (category === 'assignees' && (itemToDelete === 'Unassigned' || itemToDelete === 'Not Assigned')) {
+      alert("System reserved profiles cannot be deleted.");
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete "${itemToDelete}"? This change is permanent.`)) {
+      return;
+    }
+
     const updatedSettings = {
       ...settings,
       [category]: settings[category].filter((_, i) => i !== index)
@@ -41,21 +66,18 @@ export default function SettingsPage() {
 
     setSettings(updatedSettings);
 
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedSettings)
-    });
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSettings)
+      });
+    } catch (e) {
+      console.error("Failed to delete settings item:", e);
+    }
   };
 
-  if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-      <div style={{ textAlign: 'center' }}>
-        <Settings className="spin" size={32} color="var(--color-primary)" />
-        <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Loading System Configurations...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <LoadingOverlay message="System Configuration" subtext="Linking to global data streams..." />;
 
   const renderSection = (category, title, Icon) => (
     <div className="card" style={{
@@ -104,20 +126,29 @@ export default function SettingsPage() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: '120px', maxHeight: '350px' }}>
-        {settings[category]?.map((item, index) => (
-          <div key={index} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '14px 24px', borderBottom: '1px solid #f8fafc'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ChevronRight size={10} color="#cbd5e1" />
-              <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: '500' }}>{item}</span>
+        {settings[category]?.map((item, index) => {
+          const isReserved = category === 'assignees' && (item === 'Unassigned' || item === 'Not Assigned');
+          
+          return (
+            <div key={index} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '14px 24px', borderBottom: '1px solid #f8fafc',
+              opacity: isReserved ? 0.7 : 1
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ChevronRight size={10} color="#cbd5e1" />
+                <span style={{ fontSize: '0.9rem', color: isReserved ? '#94a3b8' : '#334155', fontWeight: '600' }}>
+                    {item} {isReserved && <span style={{fontSize: '0.65rem', fontWeight: '800', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px'}}>SYSTEM</span>}
+                </span>
+              </div>
+              {!isReserved && (
+                <button className="icon-action-btn" onClick={() => handleDelete(category, index)} style={{ color: '#f43f5e', padding: '6px' }} title="Delete">
+                  <Trash2 size={15} />
+                </button>
+              )}
             </div>
-            <button className="icon-action-btn" onClick={() => handleDelete(category, index)} style={{ color: '#cbd5e1', padding: '6px' }} title="Delete">
-              <Trash2 size={15} />
-            </button>
-          </div>
-        ))}
+          );
+        })}
         {settings[category]?.length === 0 && (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             <Plus size={24} style={{ opacity: 0.3 }} />
@@ -129,7 +160,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '64px', paddingLeft: '20px', paddingRight: '20px' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '80px', paddingLeft: '20px', paddingRight: '20px' }}>
       <div style={{ paddingTop: '20px', marginBottom: '24px' }}>
         <GlobalHeader 
           placeholder="Search settings..." 
