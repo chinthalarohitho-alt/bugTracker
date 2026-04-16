@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/requireAuth';
 
 const getSQL = () => {
   if (!process.env.DATABASE_URL) return null;
@@ -9,6 +10,8 @@ const getSQL = () => {
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ projects: [], statuses: [], priorities: [], assignees: [] });
   try {
@@ -22,6 +25,8 @@ export async function GET() {
 }
 
 export async function PUT(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 503 });
   try {

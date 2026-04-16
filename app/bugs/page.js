@@ -41,6 +41,7 @@ function BugManagement() {
   const [selectedBugs, setSelectedBugs] = useState(new Set());
   const [showSelectionPopup, setShowSelectionPopup] = useState(false);
   const [hoveredBugId, setHoveredBugId] = useState(null);
+  const [prStatuses, setPrStatuses] = useState({});
   const [selectionMode, setSelectionMode] = useState(false);
 
   const { currentReporter, showUserSelection: globalShowUserSelection, globalSearchQuery, setGlobalSearchQuery } = useAuth();
@@ -161,6 +162,34 @@ function BugManagement() {
       setSettings(settingsData);
       setLoading(false);
 
+      // Fetch PR statuses for all bugs that have GitHub PR links
+      const allPrUrls = [];
+      arr.forEach(b => {
+        let prs = [];
+        try {
+          if (Array.isArray(b.githubPr)) prs = b.githubPr;
+          else if (typeof b.githubPr === 'string' && b.githubPr.startsWith('[')) prs = JSON.parse(b.githubPr);
+          else if (b.githubPr) prs = [b.githubPr];
+        } catch {}
+        prs.filter(pr => pr && pr.includes('github.com') && pr.includes('/pull/')).forEach(pr => allPrUrls.push(pr));
+      });
+      if (allPrUrls.length > 0) {
+        fetch('/api/github/pr-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: [...new Set(allPrUrls)] })
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.statuses) {
+              const map = {};
+              data.statuses.forEach(s => { map[s.url] = s; });
+              setPrStatuses(map);
+            }
+          })
+          .catch(() => {});
+      }
+
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         const bugId = urlParams.get('bug');
@@ -266,8 +295,23 @@ function BugManagement() {
   };
 
   const [singleDeleting, setSingleDeleting] = useState(false);
-  const [undoDelete, setUndoDelete] = useState(null); // { bug, timer }
+  const [undoDelete, setUndoDelete] = useState(null);
   const undoRef = useRef(null);
+  const pendingDeleteRef = useRef(null);
+
+  // Fire pending delete on unmount (e.g. navigating away)
+  useEffect(() => {
+    return () => {
+      if (pendingDeleteRef.current) {
+        const bugId = pendingDeleteRef.current;
+        fetch('/api/bugs', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: bugId })
+        }).catch(() => {});
+      }
+    };
+  }, []);
 
   const confirmDelete = () => {
     if (!deletingBug) return;
@@ -281,9 +325,13 @@ function BugManagement() {
     // Clear any previous undo timer
     if (undoRef.current) clearTimeout(undoRef.current);
 
+    // Track pending delete for cleanup on unmount
+    pendingDeleteRef.current = bugToDelete.id;
+
     // Set undo state — user has 5 seconds to undo
     const timer = setTimeout(async () => {
       setUndoDelete(null);
+      pendingDeleteRef.current = null;
       try {
         const res = await fetch('/api/bugs', {
           method: 'DELETE',
@@ -307,6 +355,7 @@ function BugManagement() {
   const handleUndo = () => {
     if (!undoDelete) return;
     if (undoRef.current) clearTimeout(undoRef.current);
+    pendingDeleteRef.current = null;
     setBugs(prev => [...prev, undoDelete.bug]);
     showToast(`${undoDelete.shortId} restored!`);
     setUndoDelete(null);
@@ -724,6 +773,33 @@ function BugManagement() {
                     <span className={`badge ${getPriorityClass(bug.priority)}`} style={{ marginLeft: '6px' }}>{bug.priority}</span>
                     <span className="badge badge-status-pro" style={{ marginLeft: '6px' }}>{bug.status}</span>
                     <span className="badge badge-tag" style={{ marginLeft: '6px' }}>{bug.project || 'General'}</span>
+                    {(() => {
+                      let prs = [];
+                      try {
+                        if (Array.isArray(bug.githubPr)) prs = bug.githubPr;
+                        else if (typeof bug.githubPr === 'string' && bug.githubPr.startsWith('[')) prs = JSON.parse(bug.githubPr);
+                        else if (bug.githubPr) prs = [bug.githubPr];
+                      } catch {}
+                      const prWithStatus = prs.filter(Boolean).find(pr => prStatuses[pr]);
+                      if (!prWithStatus) return null;
+                      const s = prStatuses[prWithStatus];
+                      const styles = {
+                        merged: { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+                        open: { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
+                        closed: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+                      };
+                      const c = styles[s.status] || styles.open;
+                      return (
+                        <span style={{
+                          marginLeft: '6px', fontSize: '0.6rem', fontWeight: '800',
+                          padding: '3px 8px', borderRadius: '10px',
+                          backgroundColor: c.bg, color: c.color, border: `1px solid ${c.border}`,
+                          textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '3px'
+                        }}>
+                          PR: {s.label}
+                        </span>
+                      );
+                    })()}
                     {bug.module && bug.module !== 'General' && bug.module !== 'Not Assigned' && (
                       <span className="badge badge-tag-pro" style={{ marginLeft: '6px', backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)', border: '1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)', fontSize: '0.65rem' }}>
                         {getFullModulePath(bug)}

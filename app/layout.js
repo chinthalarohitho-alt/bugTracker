@@ -1,6 +1,7 @@
 import './globals.css';
-import Sidebar from './components/Sidebar';
 import { AuthProvider } from './components/AuthProvider';
+import NextAuthSessionProvider from './components/NextAuthSessionProvider';
+import AppShell from './components/AppShell';
 
 export const metadata = {
   title: 'Tapza Bug Portal',
@@ -9,7 +10,6 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-  // Use default settings for initial load; AuthProvider fetches live settings from DB
   const defaultSettings = {
     assignees: ["Rohith", "Tapza Admin", "Engineering Team"]
   };
@@ -17,14 +17,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <AuthProvider settings={defaultSettings}>
-          <Sidebar />
-          <main className="layout-main">
-            <div className="content-container">
-              {children}
-            </div>
-          </main>
-        </AuthProvider>
+        <NextAuthSessionProvider>
+          <AuthProvider settings={defaultSettings}>
+            <AppShell>{children}</AppShell>
+          </AuthProvider>
+        </NextAuthSessionProvider>
       </body>
     </html>
   );

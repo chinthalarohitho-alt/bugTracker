@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Plus, UserPlus, X, Check, Trash2, Upload } from 'lucide-react';
+import { useSession, signOut as nextAuthSignOut } from 'next-auth/react';
 import LoadingOverlay from './LoadingOverlay';
 
 const capitalizeName = (name) => {
@@ -11,14 +12,17 @@ const capitalizeName = (name) => {
 const AuthContext = createContext();
 
 export function AuthProvider({ children, settings }) {
+  const { data: sessionData, status: sessionStatus } = useSession();
   const [currentReporter, setCurrentReporter] = useState(null);
   const [showUserSelection, setShowUserSelection] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingEmail, setOnboardingEmail] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [globalBugs, setGlobalBugs] = useState([]);
-  const [globalSettings, setGlobalSettings] = useState({ projects: [], statuses: [], priorities: [], assignees: [] });
+  const [globalSettings, setGlobalSettings] = useState(null);
   const [isManageMode, setIsManageMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(null);
   const [customAvatars, setCustomAvatars] = useState([]);
@@ -26,7 +30,9 @@ export function AuthProvider({ children, settings }) {
   const [userRole, setUserRole] = useState('Team Member');
 
   const ROLE_OPTIONS = [
-    'Team Member',
+    'Founder',
+    'HR Admin',
+    'Sales Manager',
     'Developer',
     'QA Engineer',
     'Product Manager',
@@ -191,15 +197,75 @@ export function AuthProvider({ children, settings }) {
   }, [currentReporter]);
 
   useEffect(() => {
+    if (sessionStatus === 'loading') return;
+
+    if (sessionStatus === 'authenticated' && sessionData?.user) {
+      const email = (sessionData.user.email || '').toLowerCase().trim();
+
+      // If already onboarded (saved in localStorage), skip DB check
+      const savedReporter = localStorage.getItem('bugTracker_reporter');
+      const savedEmail = localStorage.getItem('bugTracker_email');
+      if (savedReporter && savedEmail === email) {
+        setCurrentReporter(savedReporter);
+        setShowUserSelection(false);
+        setLoading(false);
+        // Fetch settings in background
+        fetch('/api/settings').then(r => r.ok ? r.json() : null).then(s => {
+          if (s) setGlobalSettings(s);
+        }).catch(() => {});
+        return;
+      }
+
+      // Check if user exists by email in DB
+      fetch('/api/settings').then(r => r.ok ? r.json() : null).then(s => {
+        if (!s) { setLoading(false); return; }
+        setGlobalSettings(s);
+        const assignees = s.assignees || [];
+        const existing = assignees.find(a => {
+          const aEmail = (typeof a === 'object' ? (a.email || '') : '').toLowerCase().trim();
+          return aEmail && aEmail === email;
+        });
+
+        if (existing) {
+          const name = typeof existing === 'object' ? existing.name : existing;
+          setCurrentReporter(name);
+          setShowUserSelection(false);
+          localStorage.setItem('bugTracker_reporter', name);
+          localStorage.setItem('bugTracker_email', email);
+        } else {
+          setOnboardingEmail(email);
+          setShowOnboarding(true);
+          setShowUserSelection(false);
+        }
+        setLoading(false);
+      }).catch(() => { setLoading(false); });
+      return;
+    }
+
+    // Unauthenticated: middleware should have redirected to /signin,
+    // but fall back to localStorage for any non-gated screens.
     const savedReporter = localStorage.getItem('bugTracker_reporter');
     if (savedReporter) {
       setCurrentReporter(savedReporter);
       setShowUserSelection(false);
-    } else {
-      setShowUserSelection(true);
     }
     setLoading(false);
-  }, []);
+  }, [sessionStatus, sessionData]);
+
+  const completeOnboarding = async (name, role, avatarUrl) => {
+    const s = globalSettings || {};
+    const newMember = { name, email: onboardingEmail, avatar: avatarUrl || sessionData?.user?.image || '', color: '#2563eb', role: role || 'Team Member' };
+    const updated = { ...s, assignees: [...(s.assignees || []), newMember] };
+    try {
+      await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+      setGlobalSettings(updated);
+      if (role) setRoleForProfile(name, role);
+      setCurrentReporter(name);
+      setShowOnboarding(false);
+      localStorage.setItem('bugTracker_reporter', name);
+      localStorage.setItem('bugTracker_email', onboardingEmail);
+    } catch {}
+  };
 
   const handleUserSelect = (profile) => {
     const name = typeof profile === 'string' ? profile : profile.name;
@@ -210,11 +276,12 @@ export function AuthProvider({ children, settings }) {
 
   const handleSwitchUser = () => {
     setIsManageMode(false);
-    setShowUserSelection(true);
+    localStorage.removeItem('bugTracker_reporter');
+    nextAuthSignOut({ callbackUrl: '/signin' });
   };
 
   const getAvatar = (name) => {
-    const profile = globalSettings.assignees.find(p => p.name === name);
+    const profile = (globalSettings?.assignees || []).find(p => p.name === name);
     if (profile) return profile.avatar || '';
     return '';
   };
@@ -423,12 +490,15 @@ export function AuthProvider({ children, settings }) {
     setGlobalSearchQuery,
     globalBugs,
     globalSettings,
+    setGlobalSettings,
     isManageMode,
     setIsManageMode,
     userRole,
     ROLE_OPTIONS,
     getRoleForProfile,
-    setRoleForProfile
+    setRoleForProfile,
+    showOnboarding,
+    completeOnboarding
   };
 
   if (loading) {

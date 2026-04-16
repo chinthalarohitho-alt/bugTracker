@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { requireAuth } from '@/lib/requireAuth';
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif'];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
@@ -10,6 +11,8 @@ function getCustomDir() {
 }
 
 export async function GET() {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   try {
     const customDir = getCustomDir();
 
@@ -33,6 +36,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   try {
     const formData = await request.formData();
     const file = formData.get('file');
@@ -76,6 +81,8 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   try {
     const { path: avatarPath } = await request.json();
     if (!avatarPath || !avatarPath.startsWith('/avatars/custom/')) {

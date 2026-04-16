@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/requireAuth';
 
 const getSQL = () => {
   const url = process.env.DATABASE_URL;
@@ -93,6 +94,8 @@ function getChangeLogs(oldBug, newBug) {
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ success: true, bugs: [] });
   try {
@@ -105,6 +108,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 503 });
   try {
@@ -148,6 +153,8 @@ export async function POST(request) {
 }
 
 export async function PUT(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 503 });
   try {
@@ -190,6 +197,8 @@ export async function PUT(request) {
 }
 
 export async function DELETE(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 503 });
   try {

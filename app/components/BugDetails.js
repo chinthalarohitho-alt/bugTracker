@@ -6,14 +6,15 @@ import { capitalizeName } from './AuthProvider';
 
 export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, onQuickUpdate, onNavigate, bug, allBugs = [], settings, showToast, currentReporter }) {
 
-  const [viewingCurl, setViewingCurl] = useState(null); // { index: number, value: string }
-  const [editingField, setEditingField] = useState(null); // 'title', 'description', etc.
-  const [tempValues, setTempValues] = useState({}); // Field modifications buffer
+  const [viewingCurl, setViewingCurl] = useState(null);
+  const [editingField, setEditingField] = useState(null);
+  const [tempValues, setTempValues] = useState({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [showMentions, setShowMentions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
+  const [prStatuses, setPrStatuses] = useState({});
 
   useEffect(() => {
     setTempValues({});
@@ -21,7 +22,35 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
     setViewingCurl(null);
     setShowConfirmModal(false);
     setPendingNavigation(null);
+    setPrStatuses({});
   }, [bug?.id]);
+
+  // Fetch GitHub PR statuses
+  useEffect(() => {
+    if (!bug) return;
+    const prs = (() => {
+      if (Array.isArray(bug.githubPr)) return bug.githubPr;
+      if (typeof bug.githubPr === 'string' && bug.githubPr.startsWith('[')) { try { return JSON.parse(bug.githubPr); } catch { return []; } }
+      return bug.githubPr ? [bug.githubPr] : [];
+    })();
+    const githubPrs = prs.filter(pr => pr && pr.includes('github.com') && pr.includes('/pull/'));
+    if (githubPrs.length === 0) return;
+
+    fetch('/api/github/pr-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: githubPrs })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.statuses) {
+          const map = {};
+          data.statuses.forEach(s => { map[s.url] = s; });
+          setPrStatuses(map);
+        }
+      })
+      .catch(() => {});
+  }, [bug?.id, bug?.githubPr]);
 
   const PROJECT_MODULES = {
     "Pharmacy ERP": [
@@ -523,8 +552,30 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                               : { fontSize: '0.75rem', color: 'var(--color-text-muted)', backgroundColor: 'transparent', padding: '6px 14px', borderRadius: '20px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content', border: '1px dashed #cbd5e1' }
                             }
                             title={pr}>
-                            <Link2 size={14} /> 
+                            <Link2 size={14} />
                             {pr ? `PR ${idx + 1}` : '+ Add GitHub PR'}
+                            {pr && prStatuses[pr] && (() => {
+                              const s = prStatuses[pr];
+                              const colors = {
+                                merged: { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', icon: '✓' },
+                                open: { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe', icon: '●' },
+                                closed: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', icon: '✕' },
+                                not_found: { bg: '#f8fafc', color: '#94a3b8', border: '#e2e8f0', icon: '?' },
+                                error: { bg: '#f8fafc', color: '#94a3b8', border: '#e2e8f0', icon: '!' },
+                                invalid: { bg: '#f8fafc', color: '#94a3b8', border: '#e2e8f0', icon: '—' },
+                              };
+                              const c = colors[s.status] || colors.error;
+                              return (
+                                <span title={s.title || s.label} style={{
+                                  fontSize: '0.6rem', fontWeight: '800', padding: '2px 8px',
+                                  borderRadius: '10px', backgroundColor: c.bg, color: c.color,
+                                  border: `1px solid ${c.border}`, textTransform: 'uppercase',
+                                  display: 'inline-flex', alignItems: 'center', gap: '3px'
+                                }}>
+                                  {c.icon} {s.label}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <button onClick={() => removePr(idx)} className="icon-action-btn" style={{ color: '#ef4444' }} title="Remove PR"><Trash size={14} /></button>
                         </div>

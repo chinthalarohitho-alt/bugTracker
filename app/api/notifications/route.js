@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/requireAuth';
 
 const getSQL = () => {
   if (!process.env.DATABASE_URL) return null;
@@ -24,6 +25,8 @@ function mapNotificationRow(row) {
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ success: true, notifications: [] });
   try {
@@ -46,6 +49,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 503 });
   try {
@@ -62,6 +67,8 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
+  const gate = await requireAuth();
+  if (gate instanceof NextResponse) return gate;
   const sql = getSQL();
   if (!sql) return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 503 });
   try {

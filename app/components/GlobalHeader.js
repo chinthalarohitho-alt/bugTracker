@@ -71,7 +71,7 @@ export default function GlobalHeader({
     w.label.toLowerCase().includes(q) || w.keywords.some(k => k.includes(q))
   );
 
-  const filteredProjects = (globalSettings.projects || []).filter(p =>
+  const filteredProjects = (globalSettings?.projects || []).filter(p =>
     p.toLowerCase().includes(q)
   );
 
@@ -103,7 +103,13 @@ export default function GlobalHeader({
     })
     .slice(0, 5);
 
-  const hasResults = filteredNavs.length > 0 || filteredWidgets.length > 0 || filteredProjects.length > 0 || filteredBugs.length > 0;
+  const filteredMembers = (globalSettings?.assignees || []).filter(a => {
+    const name = (typeof a === 'object' ? a.name : a || '').toLowerCase();
+    const email = (typeof a === 'object' ? a.email || '' : '').toLowerCase();
+    return (name.includes(q) || email.includes(q)) && name !== 'not assigned' && name !== 'unassigned';
+  }).slice(0, 5);
+
+  const hasResults = filteredNavs.length > 0 || filteredWidgets.length > 0 || filteredProjects.length > 0 || filteredBugs.length > 0 || filteredMembers.length > 0;
 
   const navigateTo = (path) => {
     setShowResults(false);
@@ -189,6 +195,32 @@ export default function GlobalHeader({
                         <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--color-text-main)' }}>{proj}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Team Members */}
+                {filteredMembers.length > 0 && (
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: '850', color: 'var(--color-text-light)', textTransform: 'uppercase', letterSpacing: '0.08em', borderTop: '1px solid var(--color-border-light)', paddingTop: '16px' }}>Team Members</div>
+                    {filteredMembers.map((member, i) => {
+                      const name = typeof member === 'object' ? member.name : member;
+                      const email = typeof member === 'object' ? member.email || '' : '';
+                      return (
+                        <div key={name || i} onClick={() => navigateTo('/team')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', cursor: 'pointer' }} className="hover-shadow">
+                          <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '0.65rem' }}>
+                            {getInitials(name)}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--color-text-main)' }}>{capitalizeName(name)}</span>
+                              {typeof member === 'object' && member.role && <span style={{ fontSize: '0.6rem', fontWeight: '600', color: '#2563eb', backgroundColor: 'color-mix(in srgb, #2563eb 8%, var(--color-bg-surface))', padding: '2px 8px', borderRadius: '99px' }}>{member.role}</span>}
+                            </div>
+                            {email && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>{email}</div>}
+                          </div>
+                          <ChevronRight size={14} color="#cbd5e1" />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

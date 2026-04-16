@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth, capitalizeName } from './components/AuthProvider';
-import { Bug, ArrowRight, User, GitPullRequest, AlertCircle, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bug, ArrowRight, User, GitPullRequest, AlertCircle, GripVertical, ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle, TrendingUp, BarChart3, FolderKanban, Settings, Zap, Activity } from 'lucide-react';
 import Link from 'next/link';
 import GlobalHeader from './components/GlobalHeader';
 import LoadingOverlay from './components/LoadingOverlay';
@@ -9,7 +9,7 @@ import LoadingOverlay from './components/LoadingOverlay';
 export default function DashboardPage() {
   const [bugs, setBugs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { currentReporter } = useAuth();
+  const { currentReporter, globalSettings, getInitials, getAvatar } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,7 +38,7 @@ export default function DashboardPage() {
   // ----------------------------------------------------
 
   const {
-    myBugs
+    myBugs, totalBugs, openBugs, inProgressBugs, resolvedBugs, criticalBugs, overdueBugs
   } = useMemo(() => {
 
     // Assigned to Me
@@ -50,8 +50,15 @@ export default function DashboardPage() {
     const userBugs = bugs.filter(b => toName(b.assignee) === currentReporter);
     const myBugs = userBugs.filter(b => b.status !== 'Resolved').slice(0, 10);
 
+    const totalBugs = bugs.length;
+    const openBugs = bugs.filter(b => b.status === 'Open').length;
+    const inProgressBugs = bugs.filter(b => ['In Progress', 'In PR', 'In Testing', 'Code Review', 'UAT'].includes(b.status)).length;
+    const resolvedBugs = bugs.filter(b => ['Resolved', 'Closed'].includes(b.status)).length;
+    const criticalBugs = bugs.filter(b => b.priority?.toLowerCase() === 'critical' && !['Resolved', 'Closed'].includes(b.status)).length;
+    const overdueBugs = bugs.filter(b => b.endDate && new Date(b.endDate) < new Date() && !['Resolved', 'Closed'].includes(b.status)).length;
+
     return {
-      myBugs
+      myBugs, totalBugs, openBugs, inProgressBugs, resolvedBugs, criticalBugs, overdueBugs
     };
   }, [bugs, currentReporter]);
 
@@ -118,203 +125,28 @@ export default function DashboardPage() {
         <GlobalHeader />
       </div>
 
-      <header style={{ marginBottom: 'clamp(20px, 4vw, 40px)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-          <div style={{ backgroundColor: 'color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-surface))', color: 'var(--color-primary)', padding: '4px 10px', borderRadius: '99px', fontSize: '0.65rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Mission Control
+      {/* Top Row — Date + Greeting + CTA */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{
+            width: '56px', height: '64px', borderRadius: '16px', backgroundColor: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+          }}>
+            <div style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--color-text-main)', lineHeight: 1 }}>{new Date().getDate()}</div>
+            <div style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{new Date().toLocaleDateString(undefined, { month: 'short' })}</div>
           </div>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{new Date().toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
+          <div>
+            <h1 style={{ fontSize: 'clamp(1.3rem, 2.5vw, 1.8rem)', fontWeight: '800', color: 'var(--color-text-main)', letterSpacing: '-0.03em', marginBottom: '4px' }}>
+              Hey, {capitalizeName(currentReporter?.split(' ')[0])}!
+            </h1>
+            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', fontWeight: '500' }}>Here's what's happening with your projects today.</p>
+          </div>
         </div>
-        <h1 style={{ fontSize: 'clamp(1.2rem, 4vw, 2rem)', fontWeight: '600', color: 'var(--color-text-main)', letterSpacing: '-0.02em' }}>
-          Welcome back, {capitalizeName(currentReporter)}
-        </h1>
-      </header>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 500px), 1fr))', gap: '24px' }}>
-
-        {/* Assigned to Me */}
-        <section style={{ backgroundColor: 'var(--color-bg-surface)', padding: '32px', borderRadius: '24px', border: '1px solid var(--color-border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Your Desk</div>
-              <p style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', fontWeight: '500', marginTop: '4px' }}>Tasks currently assigned to you</p>
-            </div>
-            <Link href="/bugs" style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              View All <ArrowRight size={14} />
-            </Link>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {myBugs.map(bug => (
-              <Link href={`/bugs?bug=${bug.id}`} key={bug.id} className="item-row" style={{
-                padding: '16px 20px', backgroundColor: 'var(--color-bg-body)', borderRadius: '14px', border: '1px solid var(--color-border)', textDecoration: 'none', transition: 'all 0.2s', display: 'block'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--color-text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '12px' }}>{bug.title}</div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: '600', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', textTransform: 'uppercase' }}>{bug.status}</div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: '600' }}>{bug.id} • {bug.project || 'General'}</div>
-                  {bug.priority?.toLowerCase() === 'critical' && <span style={{ padding: '2px 8px', backgroundColor: '#fee2e2', color: '#ef4444', fontSize: '0.65rem', borderRadius: '6px', fontWeight: '600' }}>CRITICAL</span>}
-                </div>
-              </Link>
-            ))}
-            {myBugs.length === 0 && <div style={{ fontSize: '0.9rem', color: '#10b981', backgroundColor: 'var(--color-bg-body)', padding: '24px', borderRadius: '14px', textAlign: 'center', fontWeight: '600' }}>You have no pending tasks. Great job!</div>}
-          </div>
-        </section>
-
       </div>
 
-      {/* Kanban Board */}
-      <section style={{ marginTop: '40px' }}>
-        <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Kanban Board</div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', fontWeight: '500' }}>Drag bugs between columns to update status</p>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '16px', minHeight: '300px' }}>
-          {Object.entries(kanbanColumns).map(([status, col]) => (
-            <div
-              key={status}
-              onDragOver={(e) => { e.preventDefault(); setDragOverColumn(status); }}
-              onDragLeave={() => setDragOverColumn(null)}
-              onDrop={() => handleKanbanDrop(status)}
-              style={{
-                backgroundColor: dragOverColumn === status ? `${col.color}10` : 'var(--color-bg-surface)',
-                borderRadius: '20px',
-                border: dragOverColumn === status ? `2px dashed ${col.color}` : '1px solid var(--color-border)',
-                padding: '0',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '520px',
-                transition: 'all 0.2s',
-                overflow: 'hidden'
-              }}
-            >
-              <div style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid var(--color-border-light)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: col.color }} />
-                  <span style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--color-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{col.label}</span>
-                </div>
-                <span style={{
-                  fontSize: '0.7rem', fontWeight: '700', padding: '2px 10px',
-                  borderRadius: '99px', backgroundColor: `${col.color}15`, color: col.color
-                }}>{col.bugs.length}</span>
-              </div>
-              {(() => {
-                const totalPages = Math.max(1, Math.ceil(col.bugs.length / KANBAN_PAGE_SIZE));
-                const currentPage = Math.min(columnPages[status] || 0, totalPages - 1);
-                const pagedBugs = col.bugs.slice(currentPage * KANBAN_PAGE_SIZE, (currentPage + 1) * KANBAN_PAGE_SIZE);
-                return (
-              <div style={{ padding: '12px', overflowY: 'auto', maxHeight: '500px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {col.bugs.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '32px 12px', color: 'var(--color-text-light)', fontSize: '0.75rem', fontStyle: 'italic' }}>No bugs</div>
-                )}
-                {pagedBugs.map(bug => (
-                  <Link
-                    href={`/bugs?bug=${bug.id}`}
-                    key={bug.id}
-                    draggable
-                    onDragStart={() => setDraggedBug(bug)}
-                    onDragEnd={() => { setDraggedBug(null); setDragOverColumn(null); }}
-                    className="kanban-card"
-                    style={{
-                      display: 'block',
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      backgroundColor: 'var(--color-bg-body)',
-                      border: '1px solid var(--color-border-light)',
-                      cursor: 'grab',
-                      textDecoration: 'none',
-                      transition: 'all 0.15s',
-                      opacity: draggedBug?.id === bug.id ? 0.4 : 1
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      <GripVertical size={14} color="var(--color-text-light)" style={{ marginTop: '2px', flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bug.title}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-                          <span style={{ fontSize: '0.65rem', fontWeight: '600', color: 'var(--color-text-light)' }}>{getShortId(bug.id)}</span>
-                          <span style={{
-                            fontSize: '0.6rem', fontWeight: '700', padding: '1px 6px', borderRadius: '4px',
-                            backgroundColor: bug.priority?.toLowerCase() === 'critical' ? '#fee2e2' : bug.priority?.toLowerCase() === 'high' ? '#ffedd5' : '#f1f5f9',
-                            color: bug.priority?.toLowerCase() === 'critical' ? '#dc2626' : bug.priority?.toLowerCase() === 'high' ? '#ea580c' : '#64748b'
-                          }}>{bug.priority}</span>
-                          {bug.endDate && new Date(bug.endDate) < new Date() && !['Resolved', 'Closed'].includes(bug.status) && (
-                            <span style={{ fontSize: '0.6rem', fontWeight: '700', color: '#dc2626' }}>OVERDUE</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-                {col.bugs.length > KANBAN_PAGE_SIZE && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 4px', marginTop: '4px', borderTop: '1px solid var(--color-border-light)' }}>
-                    <button
-                      onClick={() => setColumnPages(p => ({ ...p, [status]: Math.max(0, currentPage - 1) }))}
-                      disabled={currentPage === 0}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: '24px', height: '24px', borderRadius: '6px',
-                        border: '1px solid var(--color-border)',
-                        backgroundColor: 'var(--color-bg-surface)',
-                        color: 'var(--color-text-main)',
-                        cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage === 0 ? 0.4 : 1
-                      }}
-                    >
-                      <ChevronLeft size={14} />
-                    </button>
-                    <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-                      {currentPage * KANBAN_PAGE_SIZE + 1}–{Math.min((currentPage + 1) * KANBAN_PAGE_SIZE, col.bugs.length)} of {col.bugs.length}
-                    </span>
-                    <button
-                      onClick={() => setColumnPages(p => ({ ...p, [status]: Math.min(totalPages - 1, currentPage + 1) }))}
-                      disabled={currentPage >= totalPages - 1}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: '24px', height: '24px', borderRadius: '6px',
-                        border: '1px solid var(--color-border)',
-                        backgroundColor: 'var(--color-bg-surface)',
-                        color: 'var(--color-text-main)',
-                        cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage >= totalPages - 1 ? 0.4 : 1
-                      }}
-                    >
-                      <ChevronRight size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
-                );
-              })()}
-            </div>
-          ))}
-        </div>
-      </section>
 
       <style jsx>{`
-        .loading-screen {
-          height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          color: var(--color-text-muted);
-        }
-        .kanban-card:hover {
-          border-color: var(--color-primary) !important;
-          box-shadow: 0 2px 8px rgba(37,99,235,0.1);
-          transform: translateY(-1px);
-        }
-        .item-row:hover {
-          border-color: var(--color-primary) !important;
-          box-shadow: 0 4px 6px -1px rgba(37,99,235,0.1);
-        }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }

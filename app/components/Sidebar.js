@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bug, LayoutDashboard, FolderKanban, BarChart3, Settings, LogOut, Moon, Sun } from 'lucide-react';
+import { Bug, LayoutDashboard, FolderKanban, BarChart3, Settings, LogOut, Moon, Sun, Users } from 'lucide-react';
 import { useAuth, capitalizeName } from './AuthProvider';
 
 export default function Sidebar() {
@@ -30,9 +30,7 @@ export default function Sidebar() {
   return (
     <aside className="layout-sidebar">
       <div className="sidebar-header">
-        <div style={{ backgroundColor: '#2563eb', color: 'white', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.15)' }}>
-          <Bug size={22} strokeWidth={2.5} />
-        </div>
+        <img src="/tapzaLogo.png" alt="Tapza" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
         <div className="sidebar-brand" style={{ marginLeft: '1px' }}>
           Tapza Bug portal
         </div>
@@ -54,6 +52,9 @@ export default function Sidebar() {
         <Link href="/settings" className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`}>
           <Settings size={18} /> Settings
         </Link>
+        <Link href="/team" className={`sidebar-link ${pathname === '/team' ? 'active' : ''}`}>
+          <Users size={18} /> Team Members
+        </Link>
       </nav>
 
       <div className="sidebar-footer" style={{ padding: '12px' }}>
@@ -71,7 +72,7 @@ export default function Sidebar() {
           {darkMode ? 'Light Mode' : 'Dark Mode'}
         </button>
 
-        <div className="user-profile" style={{ border: '1px solid var(--color-border-light)', padding: '10px 8px' }}>
+        <Link href="/profile" className="user-profile" style={{ border: '1px solid var(--color-border-light)', padding: '10px 8px', textDecoration: 'none', cursor: 'pointer' }}>
           <div
             className="avatar"
             style={{
@@ -99,14 +100,14 @@ export default function Sidebar() {
             </div>
             <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: '500' }}>{userRole || 'Team Member'}</div>
           </div>
-        </div>
+        </Link>
 
         <button
           onClick={handleSwitchUser}
           className="sidebar-link"
-          style={{ marginTop: '10px', width: '100%', border: '1px solid var(--color-border-light)', justifyContent: 'center', gap: '6px', fontSize: '0.8rem' }}
+          style={{ marginTop: '10px', width: '100%', border: '1px solid color-mix(in srgb, #ef4444 20%, var(--color-bg-surface))', justifyContent: 'center', gap: '6px', fontSize: '0.8rem', color: '#ef4444' }}
         >
-          <LogOut size={14} /> Switch User
+          <LogOut size={14} /> Logout
         </button>
       </div>
     </aside>

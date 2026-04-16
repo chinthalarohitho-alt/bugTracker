@@ -361,7 +361,6 @@ export default function SettingsPage() {
         gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
         gap: '24px'
       }}>
-        {renderSection('assignees', 'Assigned Members', Users)}
         {renderSection('statuses', 'Active Statuses', Activity)}
         {renderSection('priorities', 'Priority Levels', Signal)}
         {renderSection('projects', 'Project Domains', Folder)}
