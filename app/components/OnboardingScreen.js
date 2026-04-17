@@ -85,9 +85,6 @@ export default function OnboardingScreen() {
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-light)' }}>
               Using your Google profile photo
             </span>
-            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-light)' }}>
-              {uploading ? 'Uploading...' : 'Click to upload photo (optional)'}
-            </span>
           </div>
 
           {/* Name */}
