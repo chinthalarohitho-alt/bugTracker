@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Pencil, Check, ExternalLink, Copy, AlertCircle } from 'lucide-react';
+import { X, Plus, Trash2, Pencil, Check, ExternalLink, Copy, AlertCircle, Bug as BugIcon } from 'lucide-react';
 import CustomDropdown from './CustomDropdown';
 
 const getAssigneeName = (a) => {
@@ -211,19 +211,44 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
 
   return (
     <div className="modal-overlay" onClick={handleSafeClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(820px, 95vw)', padding: '0', borderRadius: '12px' }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+        maxWidth: 'min(720px, 95vw)',
+        padding: '0',
+        borderRadius: 14
+      }}>
 
-        <div style={{ padding: '20px 24px 12px 24px', position: 'relative' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: '700', marginBottom: '4px', color: 'var(--color-text-main)' }}>
-            {initialData ? 'Update Bug Report' : 'Create New Bug Report'}
-          </h2>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
-            {initialData ? 'Modify the existing bug details for accurate tracking.' : 'Report a new bug with detailed information for proper tracking.'}
-          </p>
+        <div style={{
+          padding: '20px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          borderBottom: '1px solid var(--color-border)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 10,
+              backgroundColor: '#f43f5e18', color: '#f43f5e',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <BugIcon size={17} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.98rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
+                {initialData ? 'Update Bug Report' : 'Create New Bug Report'}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                {initialData ? 'Modify the existing bug details.' : 'Report a new bug with details for tracking.'}
+              </div>
+            </div>
+          </div>
           <button
             type="button"
-            style={{ position: 'absolute', top: '20px', right: '20px', color: 'var(--color-text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              border: 'none', background: 'transparent',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--color-text-muted)', cursor: 'pointer'
+            }}
             onClick={handleSafeClose}
+            aria-label="Close"
           >
             <X size={18} />
           </button>
@@ -242,12 +267,12 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
           <div style={{ padding: '0 24px 20px 24px', overflowY: 'auto', flex: 1, paddingBottom: '30px' }}>
 
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Title <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
                 required
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: '0.86rem', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none', fontFamily: 'var(--font-family)' }}
                 value={formData.title}
                 onChange={e => setFormData({ ...formData, title: e.target.value })}
                 placeholder="Brief description of the bug"
@@ -255,13 +280,13 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
             </div>
 
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Description <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <textarea
                 required
                 rows="2"
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem', resize: 'vertical' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: '0.86rem', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none', fontFamily: 'var(--font-family)', resize: 'vertical' }}
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Detailed description of the issue"
@@ -269,12 +294,12 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
             </div>
 
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Steps to Reproduce
               </label>
               <textarea
                 rows="3"
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem', resize: 'vertical' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: '0.86rem', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none', fontFamily: 'var(--font-family)', resize: 'vertical' }}
                 value={formData.stepsToReproduce}
                 onChange={e => setFormData({ ...formData, stepsToReproduce: e.target.value })}
                 placeholder="1. Go to...&#10;2. Click on...&#10;3. Observe..."
@@ -286,7 +311,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>Expected Result</label>
                 <textarea
                   rows="2"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: '0.86rem', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none', fontFamily: 'var(--font-family)' }}
                   value={formData.expectedResult}
                   onChange={e => setFormData({ ...formData, expectedResult: e.target.value })}
                   placeholder="What should happen"
@@ -296,7 +321,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#b91c1c', marginBottom: '6px', textTransform: 'uppercase' }}>Actual Result</label>
                 <textarea
                   rows="2"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: '0.86rem', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none', fontFamily: 'var(--font-family)' }}
                   value={formData.actualResult}
                   onChange={e => setFormData({ ...formData, actualResult: e.target.value })}
                   placeholder="What actually happened"
@@ -311,7 +336,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
               marginBottom: '16px' 
             }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>Priority</label>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Priority</label>
                 <CustomDropdown 
                   options={settings.priorities}
                   selected={formData.priority}
@@ -321,7 +346,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>Severity</label>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</label>
                 <CustomDropdown 
                   options={["Critical", "Major", "Minor"]}
                   selected={formData.severity}
@@ -332,7 +357,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
               </div>
               {initialData && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>Status</label>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
                   <CustomDropdown 
                     options={settings.statuses}
                     selected={formData.status}
@@ -346,7 +371,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '12px', marginBottom: '24px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>Project Domain</label>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project Domain</label>
                 <CustomDropdown 
                   options={["Pharmacy ERP", "Clinic ERP", "Laboratory ERP", "Hospital ERP"]}
                   selected={formData.project}
@@ -363,7 +388,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>Functional Module</label>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Functional Module</label>
                 <CustomDropdown 
                   options={getModulesForProject(formData.project)}
                   selected={formData.module}
@@ -376,7 +401,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '12px', marginBottom: '24px' }}>
                 <div className="form-group" style={{ display: 'flex', flexDirection: 'column' }}>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>Assign to <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assign to <span style={{ color: '#ef4444' }}>*</span></label>
                     <CustomDropdown
                       options={assigneeNames}
                       selected={getAssigneeName(formData.assignee)}
@@ -386,7 +411,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                     />
                 </div>
                 <div className="form-group">
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>Start Date</label>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Date</label>
                     <input
                       type="date"
                       style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
@@ -395,7 +420,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                     />
                 </div>
                 <div className="form-group">
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '6px' }}>End Date</label>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>End Date</label>
                     <input
                       type="date"
                       style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
@@ -419,7 +444,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '16px', marginBottom: '24px' }}>
                 <div className="form-group">
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '8px' }}>GitHub PR Artifacts</label>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GitHub PR Artifacts</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {formData.githubPr.map((pr, idx) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -441,7 +466,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                 </div>
 
                 <div className="form-group">
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '8px' }}>CURL Context (Reproduction)</label>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CURL Context (Reproduction)</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {formData.curl.map((snippet, idx) => (
                       <div key={idx} style={{ padding: '10px', backgroundColor: 'var(--color-bg-surface)', borderRadius: '8px', border: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -458,7 +483,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '8px' }}>Related Issue Cluster</label>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Related Issue Cluster</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
                   {formData.relatedBugs.length > 0 ? (
                     formData.relatedBugs.map(rid => {
@@ -496,25 +521,35 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
             </div>
           </div>
           <div style={{
-            padding: '16px 24px',
+            padding: '14px 24px',
             borderTop: '1px solid var(--color-border)',
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: '8px',
-            backgroundColor: 'var(--color-bg-surface)',
-            borderBottomLeftRadius: '12px',
-            borderBottomRightRadius: '12px'
+            gap: 8,
+            borderBottomLeftRadius: 14,
+            borderBottomRightRadius: 14
           }}>
             <button
               type="button"
-              style={{ padding: '8px 24px', borderRadius: '6px', border: '1px solid var(--color-border)', backgroundColor: 'transparent', fontWeight: '600', fontSize: '0.85rem', color: 'var(--color-text-main)', cursor: 'pointer' }}
+              style={{
+                padding: '8px 14px', borderRadius: 8,
+                border: '1px solid var(--color-border)',
+                backgroundColor: 'transparent',
+                color: 'var(--color-text-muted)',
+                fontSize: '0.82rem', fontWeight: 500, cursor: 'pointer'
+              }}
               onClick={handleSafeClose}
             >
               Cancel
             </button>
             <button
               type="submit"
-              style={{ padding: '10px 24px', borderRadius: '6px', border: 'none', backgroundColor: '#2563eb', fontWeight: '600', fontSize: '0.85rem', color: '#fff', cursor: 'pointer' }}
+              style={{
+                padding: '8px 16px', borderRadius: 8,
+                border: 'none', backgroundColor: '#0f172a',
+                color: 'white',
+                fontSize: '0.82rem', fontWeight: 500, cursor: 'pointer'
+              }}
             >
               {initialData ? 'Update the Bug' : 'Create Bug report'}
             </button>
@@ -528,9 +563,9 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ 
             maxWidth: '900px', 
             width: '95%', 
-            padding: '40px', 
+            padding: '40px',
             borderRadius: '28px',
-            backgroundColor: 'var(--color-bg-surface)',
+            backgroundColor: 'var(--chrome-bg-raised)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             animation: 'modalSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>

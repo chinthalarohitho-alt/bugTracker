@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth, capitalizeName } from '../components/AuthProvider';
 import { useSession } from 'next-auth/react';
-import { Save, Link2, Mail, User, Shield, Briefcase } from 'lucide-react';
-import GlobalHeader from '../components/GlobalHeader';
+import { Save, Check, User, Shield, Link2, Mail } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 
 const ROLE_OPTIONS = [
   'Founder', 'HR Admin', 'Sales Manager',
@@ -12,7 +12,7 @@ const ROLE_OPTIONS = [
 ];
 
 export default function ProfilePage() {
-  const { currentReporter, getAvatar, getInitials, getRoleForProfile, setRoleForProfile, globalSettings, setGlobalSettings } = useAuth();
+  const { currentReporter, getInitials, getRoleForProfile, setRoleForProfile, globalSettings, setGlobalSettings } = useAuth();
   const { data: session } = useSession();
 
   const [name, setName] = useState(currentReporter || '');
@@ -20,7 +20,7 @@ export default function ProfilePage() {
   const [avatar, setAvatar] = useState('');
   const [linkedin, setLinkedin] = useState('');
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState('personal');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!currentReporter || !globalSettings?.assignees) return;
@@ -38,7 +38,8 @@ export default function ProfilePage() {
   }, [currentReporter, globalSettings]);
 
   const handleSave = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
+    setSaving(true);
     if (setRoleForProfile) setRoleForProfile(name.trim(), role);
     localStorage.setItem(`bugTracker_linkedin_${name.trim()}`, linkedin);
     try {
@@ -55,7 +56,6 @@ export default function ProfilePage() {
       await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
       if (setGlobalSettings) setGlobalSettings(updated);
 
-      // If name changed, update all bugs where this user is assignee or reporter
       if (name.trim() !== currentReporter) {
         try {
           const bugsRes = await fetch('/api/bugs');
@@ -78,265 +78,211 @@ export default function ProfilePage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {}
+    finally { setSaving(false); }
   };
 
   if (!currentReporter || !globalSettings) return (
-    <main style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '24px' }}><GlobalHeader /></div>
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Loading profile...</div>
+    <main style={{ maxWidth: 1400 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+        Loading profile...
+      </div>
     </main>
   );
 
   const email = session?.user?.email || '';
   const initials = getInitials(name || currentReporter);
 
+  const saveButton = (
+    <button
+      onClick={handleSave}
+      disabled={saving}
+      className={saved ? 'btn' : 'btn btn-primary'}
+      style={{
+        border: 'none',
+        backgroundColor: saved ? '#22c55e' : undefined,
+        color: saved ? 'white' : undefined,
+        cursor: saving ? 'wait' : 'pointer',
+        opacity: saving ? 0.7 : 1
+      }}>
+      {saved ? <Check size={14} /> : <Save size={14} />}
+      {saved ? 'Saved' : saving ? 'Saving…' : 'Save changes'}
+    </button>
+  );
+
   return (
-    <main style={{ padding: '20px 20px 80px', maxWidth: '1000px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <GlobalHeader />
-      </div>
+    <main style={{ maxWidth: 1400 }}>
+      <PageHeader
+        title="Profile"
+        subtitle="Update your name, role, photo, and social links."
+        actions={saveButton}
+      />
 
-      {/* Profile Header */}
-      <div style={{
-        backgroundColor: 'var(--color-bg-surface)', borderRadius: '24px',
-        border: '1px solid var(--color-border)', padding: '32px 36px',
-        marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '24px',
-      }}>
-        {/* Avatar */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
+      {/* IDENTITY */}
+      <section style={{ marginTop: 24 }}>
+        <SectionHeader icon={User} color="#2563eb" label="Identity" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderTop: '1px solid var(--chrome-border)', borderBottom: '1px solid var(--chrome-border)' }}>
           <div style={{
-            width: '80px', height: '80px', borderRadius: '50%',
-            backgroundColor: '#2563eb', color: 'white',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.6rem', fontWeight: '800', overflow: 'hidden',
-            position: 'relative',
+            width: 56, height: 56, borderRadius: '50%',
+            backgroundColor: '#6366f1', color: 'white',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.1rem', fontWeight: 600, overflow: 'hidden',
+            border: '1px solid var(--color-border)',
+            flexShrink: 0
           }}>
-            {avatar && <img src={avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} onError={(e) => { e.target.style.display = 'none'; }} />}
-            {initials}
+            {avatar
+              ? /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+              : <span>{initials}</span>}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
+              {capitalizeName(name || currentReporter)}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <Mail size={11} /> {email || 'no email linked'}
+            </div>
           </div>
         </div>
 
-        {/* Name + meta */}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--color-text-main)', letterSpacing: '-0.03em' }}>
-            {capitalizeName(name || currentReporter)}
+        <Row label="Display name">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            spellCheck={false}
+            style={inputStyle}
+          />
+        </Row>
+
+        <Row label="Photo URL">
+          <input
+            type="url"
+            value={avatar}
+            onChange={(e) => setAvatar(e.target.value)}
+            placeholder={session?.user?.image ? 'Using Google photo — paste URL to override' : 'Paste image URL…'}
+            spellCheck={false}
+            style={inputStyle}
+          />
+          {avatar && session?.user?.image && avatar !== session.user.image && (
+            <button
+              type="button"
+              onClick={() => setAvatar(session?.user?.image || '')}
+              style={{
+                padding: '7px 12px', borderRadius: 8,
+                border: '1px solid var(--chrome-border)',
+                backgroundColor: 'transparent',
+                fontSize: '0.75rem', fontWeight: 500,
+                color: 'var(--color-text-muted)',
+                cursor: 'pointer', whiteSpace: 'nowrap'
+              }}>
+              Reset
+            </button>
+          )}
+        </Row>
+
+        <Row label="Email" readOnly>
+          <div style={{ ...inputStyle, color: 'var(--color-text-muted)', cursor: 'not-allowed' }}>
+            {email || '—'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', flexWrap: 'wrap' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-              <Briefcase size={12} /> {role}
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-              <Mail size={12} /> {email}
-            </span>
-          </div>
+        </Row>
+      </section>
+
+      {/* ROLE */}
+      <section style={{ marginTop: 28 }}>
+        <SectionHeader icon={Shield} color="#8b5cf6" label="Role" />
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+          gap: 8, padding: '16px 0',
+          borderTop: '1px solid var(--chrome-border)'
+        }}>
+          {ROLE_OPTIONS.map(r => {
+            const active = role === r;
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRole(r)}
+                style={{
+                  padding: '10px 12px', borderRadius: 8,
+                  border: active ? '1px solid var(--color-text-main)' : '1px solid var(--chrome-border)',
+                  backgroundColor: active ? 'var(--chrome-bg-subtle)' : 'transparent',
+                  color: 'var(--color-text-main)',
+                  fontSize: '0.82rem', fontWeight: active ? 600 : 500,
+                  cursor: 'pointer', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  transition: 'background-color 0.12s, border-color 0.12s'
+                }}>
+                <span style={{
+                  width: 14, height: 14, borderRadius: '50%',
+                  border: active ? '4px solid var(--color-text-main)' : '1.5px solid var(--chrome-border)',
+                  backgroundColor: active ? 'var(--color-bg-surface)' : 'transparent',
+                  flexShrink: 0, transition: 'all 0.12s'
+                }} />
+                {r}
+              </button>
+            );
+          })}
         </div>
+      </section>
 
-        {/* Save */}
-        <button
-          onClick={handleSave}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '10px 24px', borderRadius: '12px', border: 'none',
-            backgroundColor: saved ? '#10b981' : '#2563eb', color: 'white',
-            fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer',
-            boxShadow: saved ? '0 4px 14px rgba(16,185,129,0.3)' : '0 4px 14px rgba(37,99,235,0.25)',
-            transition: 'all 0.3s', flexShrink: 0,
-          }}
-        >
-          <Save size={15} />
-          {saved ? 'Saved!' : 'Save'}
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', padding: '4px', backgroundColor: 'var(--color-bg-surface)', borderRadius: '14px', border: '1px solid var(--color-border)' }}>
-        {[
-          { id: 'personal', label: 'Personal Info', icon: User },
-          { id: 'role', label: 'Role', icon: Shield },
-          { id: 'social', label: 'Social Links', icon: Link2 },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              padding: '10px 16px', borderRadius: '10px', border: 'none',
-              backgroundColor: activeTab === tab.id ? '#2563eb' : 'transparent',
-              color: activeTab === tab.id ? 'white' : 'var(--color-text-muted)',
-              fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            <tab.icon size={15} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      <div style={{
-        backgroundColor: 'var(--color-bg-surface)', borderRadius: '20px',
-        border: '1px solid var(--color-border)', padding: '32px',
-      }}>
-
-        {activeTab === 'personal' && (
-          <>
-            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '4px', letterSpacing: '-0.02em' }}>Personal Information</h2>
-            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: '28px' }}>Manage your display name, email, and profile photo</p>
-
-            {/* Avatar URL */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Profile Photo URL</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '48px', height: '48px', borderRadius: '50%', flexShrink: 0,
-                  backgroundColor: '#2563eb', color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '1rem', fontWeight: '800', overflow: 'hidden', position: 'relative',
-                }}>
-                  {avatar && <img src={avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} onError={(e) => { e.target.style.display = 'none'; }} />}
-                  {initials}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <input
-                    value={avatar}
-                    onChange={(e) => setAvatar(e.target.value)}
-                    placeholder={session?.user?.image ? 'Using Google profile photo' : 'Paste image URL...'}
-                    spellCheck={false}
-                    style={{
-                      width: '100%', padding: '10px 14px', borderRadius: '12px',
-                      border: '1.5px solid var(--color-border)', fontSize: '0.85rem',
-                      backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none',
-                      transition: 'border-color 0.2s',
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                    onBlur={(e) => e.target.style.borderColor = ''}
-                  />
-                </div>
-                {avatar && avatar !== session?.user?.image && (
-                  <button
-                    onClick={() => setAvatar(session?.user?.image || '')}
-                    style={{
-                      padding: '8px 14px', borderRadius: '10px', border: '1px solid var(--color-border)',
-                      backgroundColor: 'var(--color-bg-body)', fontSize: '0.72rem', fontWeight: '600',
-                      color: 'var(--color-text-muted)', cursor: 'pointer', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Reset to Google
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Display Name</label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  spellCheck={false}
-                  style={{
-                    width: '100%', padding: '12px 14px', borderRadius: '12px',
-                    border: '1.5px solid var(--color-border)', fontSize: '0.9rem',
-                    backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                  onBlur={(e) => e.target.style.borderColor = ''}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email Address</label>
-                <div style={{
-                  padding: '12px 14px', borderRadius: '12px',
-                  backgroundColor: 'var(--color-bg-body)', border: '1.5px solid var(--color-border)',
-                  fontSize: '0.9rem', color: 'var(--color-text-light)',
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                }}>
-                  <Mail size={14} color="var(--color-text-light)" />
-                  {email}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {activeTab === 'role' && (
-          <>
-            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '4px', letterSpacing: '-0.02em' }}>Role & Position</h2>
-            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: '28px' }}>Select your role in the organization</p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
-              {ROLE_OPTIONS.map(r => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  style={{
-                    padding: '14px 16px', borderRadius: '14px',
-                    border: role === r ? '2px solid #2563eb' : '1.5px solid var(--color-border)',
-                    backgroundColor: role === r ? 'color-mix(in srgb, #2563eb 8%, var(--color-bg-surface))' : 'var(--color-bg-body)',
-                    color: role === r ? '#2563eb' : 'var(--color-text-main)',
-                    fontSize: '0.82rem', fontWeight: role === r ? '700' : '500',
-                    cursor: 'pointer', transition: 'all 0.15s',
-                    textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px',
-                  }}
-                >
-                  <div style={{
-                    width: '20px', height: '20px', borderRadius: '50%',
-                    border: role === r ? '6px solid #2563eb' : '2px solid var(--color-border)',
-                    backgroundColor: role === r ? 'white' : 'transparent',
-                    flexShrink: 0, transition: 'all 0.15s',
-                  }} />
-                  {r}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {activeTab === 'social' && (
-          <>
-            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '4px', letterSpacing: '-0.02em' }}>Social Links</h2>
-            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: '28px' }}>Connect your professional profiles</p>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LinkedIn</label>
-              <div style={{ position: 'relative' }}>
-                <div style={{
-                  position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)',
-                  width: '28px', height: '28px', borderRadius: '8px',
-                  backgroundColor: '#0a66c2', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                </div>
-                <input
-                  value={linkedin}
-                  onChange={(e) => setLinkedin(e.target.value)}
-                  placeholder="https://linkedin.com/in/yourname"
-                  spellCheck={false}
-                  style={{
-                    width: '100%', padding: '12px 14px 12px 52px', borderRadius: '12px',
-                    border: '1.5px solid var(--color-border)', fontSize: '0.9rem',
-                    backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#0a66c2'}
-                  onBlur={(e) => e.target.style.borderColor = ''}
-                />
-              </div>
-              {linkedin && (
-                <a href={linkedin} target="_blank" rel="noopener noreferrer" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  marginTop: '12px', fontSize: '0.75rem', color: '#0a66c2', fontWeight: '600', textDecoration: 'none',
-                }}>
-                  View profile →
-                </a>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+      {/* SOCIAL */}
+      <section style={{ marginTop: 28 }}>
+        <SectionHeader icon={Link2} color="#0a66c2" label="Social" />
+        <Row label="LinkedIn" noBorder>
+          <input
+            value={linkedin}
+            onChange={(e) => setLinkedin(e.target.value)}
+            placeholder="https://linkedin.com/in/yourname"
+            spellCheck={false}
+            style={inputStyle}
+          />
+          {linkedin && (
+            <a href={linkedin} target="_blank" rel="noopener noreferrer" style={{
+              fontSize: '0.75rem', color: '#0a66c2', fontWeight: 500,
+              textDecoration: 'none', whiteSpace: 'nowrap'
+            }}>
+              View →
+            </a>
+          )}
+        </Row>
+      </section>
     </main>
   );
 }
+
+function SectionHeader({ icon: Icon, color, label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      <Icon size={15} color={color} strokeWidth={2} />
+      <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--color-text-main)' }}>{label}</div>
+    </div>
+  );
+}
+
+function Row({ label, children, noBorder }) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '180px 1fr',
+      alignItems: 'center',
+      gap: 16,
+      padding: '14px 0',
+      borderTop: noBorder ? '1px solid var(--chrome-border)' : undefined,
+      borderBottom: '1px solid var(--chrome-border)'
+    }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const inputStyle = {
+  flex: 1, minWidth: 0,
+  padding: '9px 12px', borderRadius: 8,
+  border: '1px solid var(--chrome-border)',
+  backgroundColor: 'var(--chrome-bg-raised)',
+  fontSize: '0.86rem', color: 'var(--color-text-main)',
+  fontFamily: 'var(--font-family)', outline: 'none'
+};
+

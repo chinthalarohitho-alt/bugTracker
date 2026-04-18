@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import { useAuth, capitalizeName } from '../components/AuthProvider';
 import { useSession } from 'next-auth/react';
-import { Mail, Link2, Search } from 'lucide-react';
-import GlobalHeader from '../components/GlobalHeader';
+import { Mail } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import LoadingOverlay from '../components/LoadingOverlay';
 import Link from 'next/link';
 
@@ -65,121 +65,78 @@ export default function TeamPage() {
   };
 
   return (
-    <main style={{ padding: '20px 20px 80px', maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <GlobalHeader placeholder="Search team members..." />
-      </div>
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-text-main)', letterSpacing: '-0.03em', marginBottom: '4px' }}>
-            Team Members
-          </h1>
-          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-            Manage team members, set roles, and track progress.
-          </p>
-        </div>
-      </div>
+    <main style={{ maxWidth: 1400 }}>
+      <PageHeader
+        title="Team"
+        subtitle="Members across your workspace."
+      />
 
       {filtered.length === 0 && search ? (
-        <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-          No members found for "{search}"
+        <div style={{ padding: '40px 0', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+          No members found for &ldquo;{search}&rdquo;
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-          <img src="/team-spirit.svg" alt="Team" style={{ width: '100%', maxWidth: '280px', margin: '0 auto 24px', display: 'block' }} />
-          <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '6px' }}>No team members yet</h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Members are added when they sign in or you can add manually.</p>
-          <button onClick={() => setShowSetup(true)} style={{ padding: '10px 24px', borderRadius: '10px', backgroundColor: '#2563eb', color: 'white', fontSize: '0.8rem', fontWeight: '700', border: 'none', cursor: 'pointer' }}>Add first member</button>
+        <div style={{ padding: '40px 0', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+          No team members yet. <button onClick={() => setShowSetup(true)} style={{ color: 'var(--color-primary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.9rem' }}>Add the first one.</button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+        <div style={{ borderTop: '1px solid var(--chrome-border)' }}>
           {filtered.map((member, i) => {
             const name = typeof member === 'object' ? member.name : member;
             const avatar = getAvatar(name);
             const email = typeof member === 'object' ? member.email : '';
             const linkedin = typeof member === 'object' ? member.linkedin : '';
-            const isOnline = name === currentReporter;
             const storedRole = getRoleForProfile ? getRoleForProfile(name) : null;
             const role = (storedRole && storedRole !== 'Team Member') ? storedRole : (typeof member === 'object' && member.role ? member.role : (storedRole || 'Team Member'));
             const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
 
             return (
               <div key={`${name}-${i}`} style={{
-                backgroundColor: 'var(--color-bg-surface)', borderRadius: '16px',
-                border: '1px solid var(--color-border)', padding: '28px 20px 24px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                textAlign: 'center', transition: 'all 0.2s', position: 'relative',
+                display: 'grid',
+                gridTemplateColumns: 'auto 1fr auto auto',
+                alignItems: 'center',
+                gap: 16,
+                padding: '14px 8px',
+                borderBottom: '1px solid var(--chrome-border)',
               }}>
-                {/* Avatar */}
                 <div style={{
-                  width: '72px', height: '72px', borderRadius: '50%',
+                  width: 36, height: 36, borderRadius: '50%',
                   backgroundColor: color, color: 'white',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '1.2rem', fontWeight: '800', overflow: 'hidden',
-                  marginBottom: '16px', position: 'relative',
-                  boxShadow: `0 4px 12px ${color}30`,
+                  fontSize: '0.78rem', fontWeight: 600, overflow: 'hidden', position: 'relative'
                 }}>
-                  {avatar && <img src={avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} onError={(e) => { e.target.style.display = 'none'; }} />}
+                  {avatar && /* eslint-disable-next-line @next/next/no-img-element */<img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} onError={(e) => { e.target.style.display = 'none'; }} />}
                   {getInitials(name)}
                 </div>
 
-                {/* Name */}
-                <div style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '2px' }}>
-                  {capitalizeName(name)}
-                </div>
-
-                {/* Email */}
-                {email && (
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-                    {email}
-                  </div>
-                )}
-
-                {/* Role badge */}
-                <div style={{
-                  fontSize: '0.65rem', fontWeight: '600', color: '#2563eb',
-                  padding: '4px 12px', borderRadius: '99px',
-                  backgroundColor: 'color-mix(in srgb, #2563eb 8%, var(--color-bg-surface))',
-                  marginBottom: '14px',
-                }}>
-                  {role}
-                </div>
-
-                {/* Action row */}
-                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--color-text-main)' }}>{capitalizeName(name)}</div>
                   {email && (
-                    <a href={`mailto:${email}`} style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                      padding: '8px', borderRadius: '10px',
-                      backgroundColor: 'var(--color-bg-body)', border: '1px solid var(--color-border)',
-                      fontSize: '0.7rem', fontWeight: '600', color: 'var(--color-text-muted)',
-                      textDecoration: 'none', transition: 'all 0.15s',
-                    }}>
-                      <Mail size={12} /> Email
-                    </a>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
                   )}
+                </div>
+
+                <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{role}</span>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16, minWidth: 200 }}>
                   {linkedin && (
                     <a href={linkedin} target="_blank" rel="noopener noreferrer" style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                      padding: '8px', borderRadius: '10px',
-                      backgroundColor: 'var(--color-bg-body)', border: '1px solid var(--color-border)',
-                      fontSize: '0.7rem', fontWeight: '600', color: '#0a66c2',
-                      textDecoration: 'none', transition: 'all 0.15s',
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: '0.76rem', fontWeight: 500,
+                      color: '#0a66c2', textDecoration: 'none'
                     }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="#0a66c2"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="#0a66c2"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
                       LinkedIn
                     </a>
                   )}
-                  {!email && !linkedin && (
-                    <div style={{
-                      flex: 1, padding: '8px', borderRadius: '10px',
-                      backgroundColor: 'var(--color-bg-body)',
-                      fontSize: '0.65rem', color: 'var(--color-text-light)', textAlign: 'center',
+                  {email && (
+                    <a href={`mailto:${email}`} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: '0.76rem', fontWeight: 500,
+                      color: 'var(--color-text-muted)', textDecoration: 'none'
                     }}>
-                      No links added
-                    </div>
+                      <Mail size={13} /> Email
+                    </a>
                   )}
                 </div>
               </div>

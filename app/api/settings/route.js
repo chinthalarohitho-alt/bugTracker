@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/requireAuth';
+import { requireAuth } from '@/bugTracker/lib/requireAuth';
 
 const getSQL = () => {
   if (!process.env.DATABASE_URL) return null;

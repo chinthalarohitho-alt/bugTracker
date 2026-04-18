@@ -7,95 +7,168 @@ export default async function AuthErrorPage({ searchParams }) {
 
   return (
     <main style={{
-      minHeight: "100vh", width: "100vw", display: "flex",
-      backgroundColor: "var(--color-bg-body)",
-      position: "fixed", inset: 0, zIndex: 50,
+      minHeight: "100vh", width: "100vw",
+      display: "grid", gridTemplateColumns: "1fr 1fr",
+      fontFamily: "var(--font-family)",
+      backgroundColor: "#ffffff"
     }}>
-      {/* Left — Error card */}
+      {/* LEFT — Illustration panel */}
       <div style={{
-        flex: 1, display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", padding: "48px 32px",
-        backgroundColor: "var(--color-bg-surface)",
-        maxWidth: "520px", minWidth: "400px",
+        backgroundColor: "#f1f5f9",
+        padding: "48px 40px",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 36,
+        textAlign: "center",
+        position: "relative",
+        overflow: "hidden"
       }}>
-        <div style={{ width: "100%", maxWidth: "340px", textAlign: "center" }}>
-          {/* Lock icon */}
-          <div style={{
-            width: "52px", height: "52px", borderRadius: "14px",
-            backgroundColor: "color-mix(in srgb, #ef4444 8%, var(--color-bg-surface))",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 24px",
-          }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
+        <div style={{
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 24,
+          width: "100%", maxWidth: 420
+        }}>
+          <svg
+            viewBox="0 0 320 280"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            style={{ width: "100%", maxWidth: 320, display: "block" }}
+          >
+            {/* Soft ground shadow */}
+            <ellipse cx="160" cy="248" rx="110" ry="8" fill="#0f172a" opacity="0.06" />
+
+            {/* Decorative dots */}
+            <circle cx="58" cy="60" r="3" fill="#cbd5e1" />
+            <circle cx="278" cy="80" r="3" fill="#cbd5e1" />
+            <circle cx="46" cy="180" r="2.5" fill="#facc15" opacity="0.8" />
+            <circle cx="282" cy="200" r="2.5" fill="#facc15" opacity="0.8" />
+            <circle cx="80" cy="38" r="2" fill="#e2e8f0" />
+            <circle cx="252" cy="42" r="2" fill="#e2e8f0" />
+
+            {/* Dashed perimeter ring */}
+            <circle cx="160" cy="140" r="116" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray="3 6" opacity="0.7" />
+
+            {/* Shield body */}
+            <path
+              d="M160 40 L235 70 L235 145 C235 188 200 222 160 232 C120 222 85 188 85 145 L85 70 Z"
+              fill="#0f172a"
+            />
+            {/* Shield highlight */}
+            <path
+              d="M160 40 L235 70 L235 145 C235 188 200 222 160 232 C120 222 85 188 85 145 L85 70 Z"
+              fill="url(#shieldGrad)"
+              opacity="0.18"
+            />
+            <defs>
+              <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#ffffff" stopOpacity="0.6" />
+                <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {/* Yellow accent badge at top of shield */}
+            <circle cx="160" cy="70" r="14" fill="#facc15" />
+            <path d="M154 70 L158 74 L167 65" stroke="#0f172a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+
+            {/* Padlock body */}
+            <rect x="128" y="138" width="64" height="52" rx="8" fill="#facc15" />
+            {/* Padlock shackle */}
+            <path
+              d="M138 138 L138 122 C138 110 148 100 160 100 C172 100 182 110 182 122 L182 138"
+              stroke="#facc15"
+              strokeWidth="8"
+              fill="none"
+              strokeLinecap="round"
+            />
+            {/* Keyhole */}
+            <circle cx="160" cy="158" r="5" fill="#0f172a" />
+            <rect x="158" y="160" width="4" height="14" rx="1.5" fill="#0f172a" />
+          </svg>
+          <div>
+            <h2 style={{
+              fontSize: "1.5rem", fontWeight: 700,
+              color: "#0f172a", margin: 0, marginBottom: 8,
+              letterSpacing: "-0.02em"
+            }}>
+              Your data is protected
+            </h2>
+            <p style={{
+              fontSize: "0.88rem", color: "#64748b",
+              margin: 0, lineHeight: 1.5, maxWidth: 340, marginInline: "auto"
+            }}>
+              Only authorized Tapza members can access this workspace.
+            </p>
           </div>
+        </div>
+      </div>
 
+      {/* RIGHT — Message panel */}
+      <div style={{
+        padding: "48px 48px",
+        display: "flex", flexDirection: "column",
+        justifyContent: "center", gap: 28
+      }}>
+        {/* Brand */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/tapzaLogo.png" alt="Tapza" style={{ width: 32, height: 32, objectFit: "contain" }} />
+          <span style={{ fontSize: "1.35rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
+            TAPZA <span style={{ color: "#64748b", fontWeight: 600 }}>INTERNAL PORTAL</span>
+          </span>
+        </div>
+
+        {/* Heading */}
+        <div style={{ textAlign: "center" }}>
           <h1 style={{
-            fontSize: "1.3rem", fontWeight: "800", color: "var(--color-text-main)",
-            marginBottom: "8px", letterSpacing: "-0.02em",
+            fontSize: "1.2rem", fontWeight: 600,
+            color: "#0f172a", margin: 0, marginBottom: 6,
+            letterSpacing: "-0.01em"
           }}>
-            {isDomainError ? "Access Restricted" : "Sign-in Failed"}
+            {isDomainError ? "Access restricted" : "Sign-in failed"}
           </h1>
-
-          <p style={{
-            fontSize: "0.85rem", color: "var(--color-text-muted)",
-            lineHeight: 1.6, marginBottom: "24px",
-          }}>
+          <p style={{ fontSize: "0.82rem", color: "#64748b", margin: 0 }}>
             {isDomainError
               ? "This workspace is only available for Tapza organization members."
               : "Something went wrong. Please try again."}
           </p>
-
-          {isDomainError && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: "8px",
-              padding: "10px 14px", borderRadius: "10px", marginBottom: "24px",
-              backgroundColor: "color-mix(in srgb, #ef4444 5%, var(--color-bg-body))",
-              border: "1px solid color-mix(in srgb, #ef4444 12%, var(--color-border))",
-              fontSize: "0.75rem", fontWeight: "600", color: "var(--color-text-muted)",
-              justifyContent: "center",
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-              Allowed: @tapza.in
-            </div>
-          )}
-
-          <Link href="/signin" style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: "100%", padding: "13px", borderRadius: "10px",
-            backgroundColor: "var(--color-bg-body)", color: "var(--color-text-main)",
-            border: "1.5px solid var(--color-border)",
-            fontSize: "0.85rem", fontWeight: "700", textDecoration: "none",
-          }}>
-            Back to sign in
-          </Link>
-
-          <p style={{ marginTop: "16px", fontSize: "0.7rem", color: "var(--color-text-light)" }}>
-            Try with a different account
-          </p>
         </div>
-      </div>
 
-      {/* Right — Illustration */}
-      <div style={{
-        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "48px", position: "relative", overflow: "hidden",
-        background: "linear-gradient(160deg, var(--color-bg-body) 0%, color-mix(in srgb, #2563eb 6%, var(--color-bg-body)) 100%)",
-      }}>
-        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: "420px", textAlign: "center" }}>
-          <img
-            src="/secure-server.svg"
-            alt="Secure server illustration"
-            style={{ width: "100%", maxWidth: "360px", margin: "0 auto", display: "block" }}
-          />
-          <h2 style={{ fontSize: "1rem", fontWeight: "800", color: "var(--color-text-main)", marginTop: "24px", letterSpacing: "-0.02em" }}>
-            Your data is protected
-          </h2>
-          <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "6px" }}>
-            Only authorized Tapza members can access this workspace
-          </p>
+        {/* Back button — matches GoogleSignInButton style */}
+        <Link
+          href="/signin"
+          style={{
+            alignSelf: "center",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9,
+            padding: "9px 20px", borderRadius: 8,
+            border: "none",
+            backgroundColor: "#0f172a",
+            cursor: "pointer",
+            fontSize: "0.82rem", fontWeight: 500,
+            color: "#ffffff",
+            fontFamily: "var(--font-family)",
+            transition: "background-color 0.15s",
+            boxShadow: "0 1px 2px rgba(15,23,42,0.08)",
+            textDecoration: "none"
+          }}
+        >
+          <span style={{
+            width: 18, height: 18, borderRadius: "50%",
+            backgroundColor: "#ffffff",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+          </span>
+          Back to sign in
+        </Link>
+
+        {/* Helper */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ flex: 1, height: 1, backgroundColor: "#e2e8f0" }} />
+          <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>tapza.in accounts only</span>
+          <span style={{ flex: 1, height: 1, backgroundColor: "#e2e8f0" }} />
         </div>
       </div>
     </main>

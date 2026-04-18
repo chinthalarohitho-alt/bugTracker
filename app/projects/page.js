@@ -1,162 +1,145 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { FolderKanban, AlertCircle, CheckCircle2, Clock, ArrowRight, MoreVertical, Plus } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import GlobalHeader from '../components/GlobalHeader';
+import PageHeader from '../components/PageHeader';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { useAuth } from '../components/AuthProvider';
 
 export default function ProjectsPage() {
-  const [bugs, setBugs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [projects, setProjects] = useState([]);
+  const { globalBugs, globalSettings } = useAuth();
+  const [bugs, setBugs] = useState(() => Array.isArray(globalBugs) ? globalBugs : []);
+  const [projects, setProjects] = useState(() => globalSettings?.projects || []);
+  const [loading, setLoading] = useState(!(globalBugs?.length > 0 && globalSettings));
   const router = useRouter();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [bugsRes, settingsRes] = await Promise.all([
-          fetch('/api/bugs'),
-          fetch('/api/settings')
-        ]);
-        const bugsData = await bugsRes.json();
-        const settingsData = await settingsRes.json();
+    if (globalBugs?.length > 0) setBugs(globalBugs);
+    if (globalSettings?.projects) setProjects(globalSettings.projects);
+    if (globalBugs?.length > 0 && globalSettings) setLoading(false);
+  }, [globalBugs, globalSettings]);
 
-        // Handle both raw array and standardized { bugs: [] } object
-        const bugsArr = Array.isArray(bugsData) ? bugsData : (bugsData.bugs || []);
-        setBugs(bugsArr);
-        setProjects(settingsData.projects || []);
-      } catch (error) {
-        console.error("Error fetching project data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/bugs').then(r => r.ok ? r.json() : { bugs: [] }),
+      fetch('/api/settings').then(r => r.ok ? r.json() : { projects: [] })
+    ]).then(([bugsData, settingsData]) => {
+      const arr = Array.isArray(bugsData) ? bugsData : (bugsData.bugs || []);
+      setBugs(arr);
+      setProjects(settingsData.projects || []);
+    }).catch(err => console.error("Error fetching project data:", err))
+      .finally(() => setLoading(false));
   }, []);
 
   const getProjectStats = (projectName) => {
     const projectBugs = bugs.filter(b => b.project === projectName);
     const critical = projectBugs.filter(b => b.priority?.toLowerCase() === 'critical').length;
     const high = projectBugs.filter(b => b.priority?.toLowerCase() === 'high').length;
-    const resolved = projectBugs.filter(b => b.status === 'Resolved').length;
-
+    const resolved = projectBugs.filter(b => b.status === 'Resolved' || b.status === 'Closed').length;
     return {
       total: projectBugs.length,
       critical,
       high,
       resolved,
+      urgent: critical + high,
       progress: projectBugs.length > 0 ? Math.round((resolved / projectBugs.length) * 100) : 100
     };
   };
 
-  const handleViewDetails = (projectName) => {
-    // Navigate to bugs list with a pre-applied project filter
-    router.push(`/bugs?project=${encodeURIComponent(projectName)}`);
-  };
+  const open = (name) => router.push(`/bugs?project=${encodeURIComponent(name)}`);
 
-  if (loading) return <LoadingOverlay message="Project Portfolios" subtext="Aggregating health metrics and resolution progress..." />;
+  if (loading) return <LoadingOverlay message="Project Portfolios" subtext="Aggregating health metrics..." />;
 
-  const statsList = projects.map(project => ({
-    name: project,
-    stats: getProjectStats(project)
-  }));
+  const list = projects.map(name => ({ name, stats: getProjectStats(name) }));
 
   return (
-    <main style={{ padding: '20px 20px 80px', backgroundColor: 'var(--color-bg-body)', minHeight: '100vh' }}>
-      <div style={{ marginBottom: '16px' }}>
-        <GlobalHeader
-          placeholder="Search projects..."
-        />
-      </div>
+    <main style={{ maxWidth: 1400 }}>
+      <PageHeader
+        title="Projects"
+        subtitle="Health and bug distribution across your projects."
+      />
 
-      <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '8px' }}>Project Portfolios</h1>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Monitor health and bug distribution across your vertical ERP solutions.</p>
-        </div>
-      </header>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px' }}>
-        {statsList.map(({ name, stats }) => (
-          <div key={name} className="card project-card" style={{
-            backgroundColor: 'var(--color-bg-surface)',
-            borderRadius: '16px',
-            padding: '24px',
-            border: '1px solid var(--color-border)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'rgba(37, 99, 235, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}>
-                <FolderKanban size={24} />
-              </div>
-            </div>
-
-            <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{name}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: stats.critical > 0 ? '#ef4444' : '#22c55e' }}></div>
-              {stats.critical > 0 ? `${stats.critical} Critical Issues` : 'System Healthy'}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ padding: '12px', backgroundColor: 'var(--color-bg-body)', borderRadius: '12px', border: '1px solid var(--color-border-light)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Total Issues</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--color-text-main)' }}>{stats.total}</div>
-              </div>
-              <div style={{ padding: '12px', backgroundColor: 'var(--color-bg-body)', borderRadius: '12px', border: '1px solid var(--color-border-light)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>High/Crit</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: '600', color: '#ef4444' }}>{stats.critical + stats.high}</div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)' }}>Resolution Progress</span>
-              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-primary)' }}>{stats.progress}%</span>
-            </div>
-            <div style={{ height: '8px', width: '100%', backgroundColor: 'var(--color-bg-body)', borderRadius: '4px', overflow: 'hidden', marginBottom: '24px' }}>
-              <div style={{ width: `${stats.progress}%`, height: '100%', backgroundColor: 'var(--color-primary)', borderRadius: '4px', transition: 'width 1s ease-out' }}></div>
-            </div>
-
-            <button
-              onClick={() => handleViewDetails(name)}
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '10px',
-                backgroundColor: 'var(--color-bg-body)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-main)',
-                fontSize: '0.85rem',
-                fontWeight: '700',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }} className="hover-shadow">
-              View Project Details <ArrowRight size={16} />
-            </button>
+      <div style={{ borderTop: '1px solid var(--chrome-border)' }}>
+        {list.length === 0 && (
+          <div style={{ padding: '40px 0', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+            No projects yet.
           </div>
+        )}
+        {list.map(({ name, stats }) => (
+          <ProjectRow key={name} name={name} stats={stats} onOpen={() => open(name)} />
         ))}
       </div>
-
-      <style jsx>{`
-        .loading-screen {
-          height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          color: var(--color-text-muted);
-        }
-        .project-card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-          border-color: var(--color-primary);
-        }
-      `}</style>
     </main>
+  );
+}
+
+function ProjectRow({ name, stats, onOpen }) {
+  const healthy = stats.urgent === 0;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr auto',
+        alignItems: 'center',
+        gap: 16,
+        padding: '16px 8px',
+        borderBottom: '1px solid var(--chrome-border)',
+        cursor: 'pointer',
+        transition: 'background-color 0.12s'
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--chrome-bg-subtle)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+    >
+      <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: healthy ? '#22c55e' : '#ef4444' }} />
+
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-main)' }}>{name}</div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+          {healthy ? 'System healthy' : `${stats.urgent} high/critical ${stats.urgent === 1 ? 'issue' : 'issues'}`}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+        <Metric label="Total" value={stats.total} />
+        <Metric label="Urgent" value={stats.urgent} tint={stats.urgent > 0 ? '#ef4444' : null} />
+        <Progress value={stats.progress} />
+        <ArrowRight size={16} color="var(--color-text-light)" />
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value, tint }) {
+  return (
+    <div style={{ textAlign: 'right', minWidth: 56 }}>
+      <div style={{
+        fontSize: '1rem', fontWeight: 600,
+        color: tint || 'var(--color-text-main)',
+        lineHeight: 1, fontVariantNumeric: 'tabular-nums'
+      }}>{value}</div>
+      <div style={{
+        fontSize: '0.66rem', fontWeight: 500,
+        color: 'var(--color-text-muted)',
+        textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4
+      }}>{label}</div>
+    </div>
+  );
+}
+
+function Progress({ value }) {
+  return (
+    <div style={{ minWidth: 120 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: '0.66rem', fontWeight: 500, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Resolved</span>
+        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-main)', fontVariantNumeric: 'tabular-nums' }}>{value}%</span>
+      </div>
+      <div style={{ height: 4, width: '100%', backgroundColor: 'var(--chrome-bg-subtle)', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ width: `${value}%`, height: '100%', backgroundColor: 'var(--color-text-main)', borderRadius: 4 }} />
+      </div>
+    </div>
   );
 }

@@ -103,7 +103,7 @@ const CustomDropdown = ({
             left: 0,
             width: '100%',
             minWidth: '100%',
-            backgroundColor: 'var(--color-bg-surface)',
+            backgroundColor: 'var(--chrome-bg-raised)',
             borderRadius: '12px',
             border: '1px solid var(--color-border)',
             boxShadow: '0 12px 30px -4px rgba(0,0,0,0.2), 0 4px 8px -2px rgba(0,0,0,0.1)',

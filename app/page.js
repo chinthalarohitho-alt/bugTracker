@@ -1,150 +1,230 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth, capitalizeName } from './components/AuthProvider';
-import { Bug, ArrowRight, User, GitPullRequest, AlertCircle, GripVertical, ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle, TrendingUp, BarChart3, FolderKanban, Settings, Zap, Activity } from 'lucide-react';
-import Link from 'next/link';
-import GlobalHeader from './components/GlobalHeader';
+import PageHeader from './components/PageHeader';
 import LoadingOverlay from './components/LoadingOverlay';
+import QADashboard from './components/QADashboard';
+import DevDashboard from './components/DevDashboard';
+import OverviewDashboard from './components/OverviewDashboard';
+import HRDashboard from './components/HRDashboard';
+import SalesDashboard from './components/SalesDashboard';
+import DesignerDashboard from './components/DesignerDashboard';
+import BugDetails from './components/BugDetails';
+import { useRouter } from 'next/navigation';
+
+const DEV_ROLES = ['Developer', 'DevOps', 'Tech Lead', 'Engineering Manager'];
+const QA_ROLES = ['QA Engineer'];
+const HR_ROLES = ['HR Admin'];
+const SALES_ROLES = ['Sales Manager'];
+const DESIGNER_ROLES = ['Designer'];
+
+function inferView(role) {
+  if (!role) return 'overview';
+  if (DEV_ROLES.includes(role)) return 'dev';
+  if (QA_ROLES.includes(role)) return 'qa';
+  if (HR_ROLES.includes(role)) return 'hr';
+  if (SALES_ROLES.includes(role)) return 'sales';
+  if (DESIGNER_ROLES.includes(role)) return 'designer';
+  return 'overview';
+}
+
+function nameOf(v) {
+  if (typeof v === 'object' && v !== null) return v.name || '';
+  if (typeof v === 'string' && v.startsWith('{')) { try { return JSON.parse(v).name || v; } catch { return v; } }
+  return v || '';
+}
+
+// Ping the counterpart role when a bug transitions between hand-off states.
+const HANDOFF_MESSAGES = {
+  'In PR':            { target: 'reporter', msg: 'raised a PR — ready for your review' },
+  'Ready for Deploy': { target: 'assignee', msg: 'approved the PR — please deploy to dev env' },
+  'In Testing':       { target: 'reporter', msg: 'deployed to dev env — please verify' },
+  'Closed':           { target: 'assignee', msg: 'verified the fix — bug closed' }
+};
+
+async function notifyStatusChange(oldBug, newBug, actor) {
+  if (!oldBug || !newBug || oldBug.status === newBug.status) return;
+  const rule = HANDOFF_MESSAGES[newBug.status];
+  if (!rule) return;
+  const target = rule.target === 'reporter' ? nameOf(newBug.reporter) : nameOf(newBug.assignee);
+  if (!target || target === actor) return;
+  try {
+    await fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_user: target,
+        actor: actor || 'System',
+        bug_id: newBug.id,
+        message: `${actor || 'Someone'} ${rule.msg}`
+      })
+    });
+  } catch (err) {
+    console.error('Notify failed:', err);
+  }
+}
 
 export default function DashboardPage() {
-  const [bugs, setBugs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const { currentReporter, globalSettings, getInitials, getAvatar } = useAuth();
+  const { currentReporter, userRole, globalBugs, globalSettings } = useAuth();
+  const router = useRouter();
+  const [bugs, setBugs] = useState(() => {
+    const arr = Array.isArray(globalBugs) ? [...globalBugs] : [];
+    return arr.sort((a, b) => {
+      const numA = parseInt(String(a.id).replace(/\D/g, '') || '0');
+      const numB = parseInt(String(b.id).replace(/\D/g, '') || '0');
+      return numB - numA;
+    });
+  });
+  const [loading, setLoading] = useState(globalBugs.length === 0);
+  const [view, setView] = useState(null); // 'qa' | 'dev' | 'overview'
+  const [viewingBug, setViewingBug] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [toast, setToast] = useState({ message: '', visible: false });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/bugs');
-        if (!res.ok) { setBugs([]); return; }
-        const data = await res.json();
-        const bugsArr = Array.isArray(data) ? data : (data.bugs || []);
-        let sortedBugs = bugsArr.sort((a, b) => {
-          const numA = parseInt(a.id.replace(/\D/g, '') || '0');
-          const numB = parseInt(b.id.replace(/\D/g, '') || '0');
-          return numB - numA;
-        });
-        setBugs(sortedBugs);
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const showToast = useCallback((message) => {
+    if (typeof window !== 'undefined' && window.__dashToastTimer) clearTimeout(window.__dashToastTimer);
+    setToast({ message, visible: true });
+    if (typeof window !== 'undefined') {
+      window.__dashToastTimer = setTimeout(() => setToast({ message: '', visible: false }), 3000);
+    }
   }, []);
 
-  // ----------------------------------------------------
-  // METRICS & CALCULATIONS
-  // ----------------------------------------------------
+  const handleOpenBug = useCallback((bug) => {
+    setViewingBug(bug);
+    setIsDetailsOpen(true);
+  }, []);
 
-  const {
-    myBugs, totalBugs, openBugs, inProgressBugs, resolvedBugs, criticalBugs, overdueBugs
-  } = useMemo(() => {
+  const handleCloseDrawer = useCallback(() => {
+    setIsDetailsOpen(false);
+    setViewingBug(null);
+  }, []);
 
-    // Assigned to Me
-    const toName = (v) => {
-      if (typeof v === 'object' && v !== null) return v.name || '';
-      if (typeof v === 'string' && v.startsWith('{')) { try { return JSON.parse(v).name || v; } catch { return v; } }
-      return v || '';
-    };
-    const userBugs = bugs.filter(b => toName(b.assignee) === currentReporter);
-    const myBugs = userBugs.filter(b => b.status !== 'Resolved').slice(0, 10);
+  useEffect(() => {
+    if (globalBugs.length > 0) {
+      const sorted = [...globalBugs].sort((a, b) => {
+        const numA = parseInt(String(a.id).replace(/\D/g, '') || '0');
+        const numB = parseInt(String(b.id).replace(/\D/g, '') || '0');
+        return numB - numA;
+      });
+      setBugs(sorted);
+      setLoading(false);
+    }
+  }, [globalBugs]);
 
-    const totalBugs = bugs.length;
-    const openBugs = bugs.filter(b => b.status === 'Open').length;
-    const inProgressBugs = bugs.filter(b => ['In Progress', 'In PR', 'In Testing', 'Code Review', 'UAT'].includes(b.status)).length;
-    const resolvedBugs = bugs.filter(b => ['Resolved', 'Closed'].includes(b.status)).length;
-    const criticalBugs = bugs.filter(b => b.priority?.toLowerCase() === 'critical' && !['Resolved', 'Closed'].includes(b.status)).length;
-    const overdueBugs = bugs.filter(b => b.endDate && new Date(b.endDate) < new Date() && !['Resolved', 'Closed'].includes(b.status)).length;
+  useEffect(() => {
+    fetch('/api/bugs')
+      .then(res => res.ok ? res.json() : { bugs: [] })
+      .then(data => {
+        const arr = Array.isArray(data) ? data : (data.bugs || []);
+        const sorted = arr.sort((a, b) => {
+          const numA = parseInt(String(a.id).replace(/\D/g, '') || '0');
+          const numB = parseInt(String(b.id).replace(/\D/g, '') || '0');
+          return numB - numA;
+        });
+        setBugs(sorted);
+      })
+      .catch(err => console.error("Error fetching dashboard data:", err))
+      .finally(() => setLoading(false));
+  }, []);
 
-    return {
-      myBugs, totalBugs, openBugs, inProgressBugs, resolvedBugs, criticalBugs, overdueBugs
-    };
-  }, [bugs, currentReporter]);
+  useEffect(() => {
+    setView(inferView(userRole));
+  }, [userRole]);
 
-  const [draggedBug, setDraggedBug] = useState(null);
-  const [dragOverColumn, setDragOverColumn] = useState(null);
-  const [columnPages, setColumnPages] = useState({});
-  const KANBAN_PAGE_SIZE = 5;
-
-  const kanbanColumns = useMemo(() => {
-    const toName = (v) => {
-      if (typeof v === 'object' && v !== null) return v.name || '';
-      if (typeof v === 'string' && v.startsWith('{')) { try { return JSON.parse(v).name || v; } catch { return v; } }
-      return v || '';
-    };
-    const cols = {
-      'Open': { label: 'Open', color: '#3b82f6', bugs: [] },
-      'In Progress': { label: 'In Progress', color: '#f59e0b', bugs: [] },
-      'In PR': { label: 'In PR', color: '#8b5cf6', bugs: [] },
-      'In Testing': { label: 'In Testing', color: '#06b6d4', bugs: [] },
-      'Resolved': { label: 'Resolved', color: '#10b981', bugs: [] }
-    };
-    const aliasMap = {
-      'Code Review': 'In PR',
-      'Review': 'In PR',
-      'In Review': 'In PR',
-      'UAT': 'In Testing',
-      'Testing': 'In Testing',
-      'QA': 'In Testing',
-      'Closed': 'Resolved',
-      'ReOpen': 'Open'
-    };
-    bugs.forEach(bug => {
-      const raw = bug.status || 'Open';
-      const mapped = cols[raw] ? raw : (aliasMap[raw] || 'Open');
-      cols[mapped].bugs.push(bug);
-    });
-    return cols;
-  }, [bugs]);
-
-  const handleKanbanDrop = async (targetStatus) => {
-    if (!draggedBug || draggedBug.status === targetStatus) { setDraggedBug(null); setDragOverColumn(null); return; }
-    const updated = { ...draggedBug, status: targetStatus, updatedBy: currentReporter };
-    setBugs(prev => prev.map(b => b.id === draggedBug.id ? { ...b, status: targetStatus } : b));
-    setDraggedBug(null);
-    setDragOverColumn(null);
+  const updateBug = useCallback(async (updated) => {
+    const previous = bugs.find(b => b.id === updated.id);
+    setBugs(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
     try {
-      await fetch('/api/bugs', {
+      const res = await fetch('/api/bugs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
       });
+      if (res.ok) {
+        const data = await res.json();
+        const saved = data.bug || updated;
+        setBugs(prev => prev.map(b => b.id === saved.id ? saved : b));
+        notifyStatusChange(previous, saved, currentReporter);
+      }
     } catch (err) {
-      setBugs(prev => prev.map(b => b.id === draggedBug.id ? draggedBug : b));
+      console.error('Bug update failed:', err);
     }
-  };
+  }, [bugs, currentReporter]);
 
-  const getShortId = (id) => `BUG-${String(id).split('-')[1]?.substring(0, 4)?.toUpperCase() || ''}`;
+  if (loading || view === null) {
+    return <LoadingOverlay message="Preparing Mission Control" subtext="Analyzing team performance and bug priority..." />;
+  }
 
-  if (loading) return <LoadingOverlay message="Preparing Mission Control" subtext="Analyzing team performance and bug priority..." />;
+  const subtitle =
+    view === 'qa' ? "Here's your QA pipeline today."
+    : view === 'dev' ? "Here's what you're shipping today."
+    : view === 'hr' ? "Here's how your team is looking today."
+    : view === 'sales' ? "Here's what's impacting your customers today."
+    : view === 'designer' ? "Here's what needs a designer's eye today."
+    : "Here's what's happening with your projects today.";
 
   return (
-    <main style={{ padding: '20px 20px 80px', maxWidth: '1400px', margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <GlobalHeader />
-      </div>
+    <main style={{ width: '100%', animation: 'fadeIn 0.4s ease-out' }}>
+      <PageHeader
+        context="Default"
+        title={`Hey, ${capitalizeName(currentReporter?.split(' ')[0]) || 'there'}!`}
+        subtitle={subtitle}
+      />
 
-      {/* Top Row — Date + Greeting + CTA */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div style={{
-            width: '56px', height: '64px', borderRadius: '16px', backgroundColor: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-          }}>
-            <div style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--color-text-main)', lineHeight: 1 }}>{new Date().getDate()}</div>
-            <div style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{new Date().toLocaleDateString(undefined, { month: 'short' })}</div>
-          </div>
-          <div>
-            <h1 style={{ fontSize: 'clamp(1.3rem, 2.5vw, 1.8rem)', fontWeight: '800', color: 'var(--color-text-main)', letterSpacing: '-0.03em', marginBottom: '4px' }}>
-              Hey, {capitalizeName(currentReporter?.split(' ')[0])}!
-            </h1>
-            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', fontWeight: '500' }}>Here's what's happening with your projects today.</p>
-          </div>
-        </div>
-      </div>
+      {view === 'qa' && (
+        <QADashboard bugs={bugs} currentReporter={currentReporter} onUpdateBug={updateBug} onOpenBug={handleOpenBug} />
+      )}
+      {view === 'dev' && (
+        <DevDashboard bugs={bugs} currentReporter={currentReporter} onUpdateBug={updateBug} onOpenBug={handleOpenBug} />
+      )}
+      {view === 'hr' && (
+        <HRDashboard bugs={bugs} />
+      )}
+      {view === 'sales' && (
+        <SalesDashboard bugs={bugs} onOpenBug={handleOpenBug} />
+      )}
+      {view === 'designer' && (
+        <DesignerDashboard bugs={bugs} currentReporter={currentReporter} onUpdateBug={updateBug} onOpenBug={handleOpenBug} />
+      )}
+      {view === 'overview' && (
+        <OverviewDashboard bugs={bugs} onOpenBug={handleOpenBug} />
+      )}
 
+      <BugDetails
+        isOpen={isDetailsOpen}
+        onClose={handleCloseDrawer}
+        onEdit={(bug) => router.push(`/bugs?bug=${bug.id}`)}
+        onStatusUpdate={(bug, newStatus) => {
+          const updated = { ...bug, status: newStatus };
+          updateBug(updated);
+          setViewingBug(updated);
+          showToast('Status updated!');
+        }}
+        onNavigate={(bug) => setViewingBug(bug)}
+        onQuickUpdate={(bug, changes) => {
+          const updated = { ...bug, ...changes };
+          updateBug(updated);
+          setViewingBug(updated);
+        }}
+        bug={viewingBug}
+        allBugs={bugs}
+        settings={globalSettings || {}}
+        showToast={showToast}
+        currentReporter={currentReporter}
+      />
+
+      <div style={{
+        position: 'fixed', bottom: '32px', right: '32px',
+        backgroundColor: '#ffffff', color: '#0f172a',
+        padding: '12px 24px', borderRadius: '12px',
+        border: '1px solid var(--color-border)',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.12)',
+        zIndex: 9999, transition: 'all 0.3s',
+        transform: toast.visible ? 'translateY(0)' : 'translateY(100px)',
+        opacity: toast.visible ? 1 : 0
+      }}>
+        {toast.message}
+      </div>
 
       <style jsx>{`
         @keyframes fadeIn {
@@ -155,3 +235,4 @@ export default function DashboardPage() {
     </main>
   );
 }
+

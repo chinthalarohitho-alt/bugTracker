@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Users, Activity, Signal, Folder, Settings, ShieldCheck, ChevronRight, Upload, Camera } from 'lucide-react';
-import GlobalHeader from '../components/GlobalHeader';
+import { Plus, Trash2, Upload, Camera } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import LoadingOverlay from '../components/LoadingOverlay';
-import { capitalizeName } from '../components/AuthProvider';
+import { capitalizeName, useAuth } from '../components/AuthProvider';
+import { CollapsibleList } from '../components/CollapsibleSection';
 
 const AVATAR_OPTIONS = [
   '/avatars/astronaut.png',
@@ -16,8 +17,9 @@ const AVATAR_OPTIONS = [
 const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#f43f5e', '#6366f1'];
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState({ assignees: [], statuses: [], priorities: [], projects: [] });
-  const [loading, setLoading] = useState(true);
+  const { globalSettings } = useAuth();
+  const [settings, setSettings] = useState(() => globalSettings || { assignees: [], statuses: [], priorities: [], projects: [] });
+  const [loading, setLoading] = useState(!globalSettings);
   const [newInputs, setNewInputs] = useState({ assignees: "", statuses: "", priorities: "", projects: "" });
   const [editingMemberProfile, setEditingMemberProfile] = useState(null);
   const [editingMemberName, setEditingMemberName] = useState('');
@@ -25,6 +27,11 @@ export default function SettingsPage() {
   const [toast, setToast] = useState('');
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [deletingItem, setDeletingItem] = useState(null);
+
+  useEffect(() => {
+    if (globalSettings) { setSettings(globalSettings); setLoading(false); }
+  }, [globalSettings]);
 
   useEffect(() => {
     Promise.all([
@@ -81,27 +88,25 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDelete = async (category, index) => {
+  const handleDelete = (category, index) => {
     const itemToDelete = settings[category][index];
-    
-    // Safety guard for system-reserved profiles
     const itemName = typeof itemToDelete === 'object' ? itemToDelete.name : itemToDelete;
     if (category === 'assignees' && (itemName === 'Unassigned' || itemName === 'Not Assigned')) {
       showToast("System reserved profiles cannot be deleted.");
       return;
     }
+    setDeletingItem({ category, index, name: itemName });
+  };
 
-    if (!confirm(`Are you sure you want to delete "${itemName}"? This change is permanent.`)) {
-      return;
-    }
-
+  const confirmDelete = async () => {
+    if (!deletingItem) return;
+    const { category, index } = deletingItem;
     const updatedSettings = {
       ...settings,
       [category]: settings[category].filter((_, i) => i !== index)
     };
-
     setSettings(updatedSettings);
-
+    setDeletingItem(null);
     try {
       await fetch('/api/settings', {
         method: 'PUT',
@@ -215,163 +220,114 @@ export default function SettingsPage() {
 
   if (loading) return <LoadingOverlay message="System Configuration" subtext="Linking to global data streams..." />;
 
-  const renderSection = (category, title, Icon) => (
-    <div className="card" style={{
-      padding: '0',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
-      border: '1px solid var(--color-border-light)',
-      borderRadius: '16px'
-    }}>
-      <div style={{
-        padding: '24px',
-        borderBottom: '1px solid var(--color-border-light)',
-        backgroundColor: 'var(--color-bg-body)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ backgroundColor: 'var(--color-bg-surface)', padding: '8px', borderRadius: '10px', color: 'var(--color-primary)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-            <Icon size={20} />
-          </div>
-          <h2 style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</h2>
-        </div>
-        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-primary)', backgroundColor: 'color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-surface))', padding: '4px 10px', borderRadius: '99px', border: '1px solid var(--color-border)' }}>
-          {settings[category]?.length || 0} items
-        </span>
+  const renderSection = (category, title) => (
+    <section style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--color-text-main)' }}>{title}</div>
+        <span style={{
+          fontSize: '0.7rem', fontWeight: 600,
+          color: 'var(--color-text-muted)',
+          backgroundColor: 'var(--chrome-bg-subtle)',
+          padding: '1px 9px', borderRadius: 999
+        }}>{settings[category]?.length || 0}</span>
       </div>
 
-      <div style={{ padding: '20px', backgroundColor: 'var(--color-bg-surface)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--color-border-light)' }}>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input
-            className="form-input"
-            style={{ flex: 1, backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', padding: '10px 14px' }}
-            placeholder={`Add new ${title.toLowerCase().slice(0, -1)}...`}
-            value={newInputs[category]}
-            onChange={(e) => setNewInputs({ ...newInputs, [category]: e.target.value })}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(category); }}
-          />
-          <button className="btn btn-primary" onClick={() => handleAdd(category)} style={{ padding: '0 16px', borderRadius: '10px', height: '42px' }}>
-            <Plus size={18} />
-          </button>
-        </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input
+          style={{
+            flex: 1, height: 38, padding: '0 14px',
+            borderRadius: 10, border: '1px solid var(--chrome-border)',
+            backgroundColor: 'var(--chrome-bg-raised)',
+            fontSize: '0.86rem', color: 'var(--color-text-main)',
+            fontFamily: 'var(--font-family)', outline: 'none'
+          }}
+          placeholder={`Add ${title.toLowerCase().replace(/s$/, '')}…`}
+          value={newInputs[category]}
+          onChange={(e) => setNewInputs({ ...newInputs, [category]: e.target.value })}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(category); }}
+        />
+        <button
+          onClick={() => handleAdd(category)}
+          style={{
+            height: 38, padding: '0 14px', borderRadius: 10, border: 'none',
+            backgroundColor: '#111827', color: 'white',
+            fontSize: '0.82rem', fontWeight: 500, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6
+          }}>
+          <Plus size={14} /> Add
+        </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: '120px', maxHeight: '350px' }}>
-        {settings[category]?.map((item, index) => {
+      <CollapsibleList
+        items={settings[category] || []}
+        emptyMessage="None yet."
+        alwaysExpanded
+        renderItem={(item) => {
+          const index = (settings[category] || []).indexOf(item);
           const itemName = typeof item === 'object' ? item.name : item;
           const isReserved = category === 'assignees' && (itemName === 'Unassigned' || itemName === 'Not Assigned');
           const isAssigneeObj = category === 'assignees' && typeof item === 'object';
-
           return (
-            <div key={index} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '14px 24px', borderBottom: '1px solid var(--color-border-light)',
-              opacity: isReserved ? 0.7 : 1
+            <div key={itemName + index} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 12, padding: '10px 8px',
+              borderBottom: '1px solid var(--chrome-border)',
+              opacity: isReserved ? 0.6 : 1
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {isAssigneeObj ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                {isAssigneeObj && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <div
                     onClick={() => { if (!isReserved) { setEditingMemberProfile(item); setEditingMemberName(''); } }}
                     style={{
-                      width: '32px', height: '32px', borderRadius: '50%',
-                      overflow: 'hidden',
-                      border: `2px solid ${item.color || '#e2e8f0'}`,
-                      cursor: isReserved ? 'default' : 'pointer',
-                      position: 'relative', flexShrink: 0,
+                      width: 26, height: 26, borderRadius: '50%',
+                      overflow: 'hidden', flexShrink: 0,
                       backgroundColor: item.color || '#2563eb',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'white', fontSize: '0.65rem', fontWeight: '800'
-                    }}
-                    title={isReserved ? '' : 'Click to change avatar'}
-                  >
-                    {item.avatar ? (
-                      <img
-                        src={item.avatar}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    ) : null}
+                      color: 'white', fontSize: '0.6rem', fontWeight: 600,
+                      position: 'relative',
+                      cursor: isReserved ? 'default' : 'pointer'
+                    }}>
+                    {item.avatar && <img src={item.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} onError={(e) => { e.target.style.display = 'none'; }} />}
                     {(item.name || '').substring(0, 2).toUpperCase()}
-                    {!isReserved && (
-                      <div style={{
-                        position: 'absolute', inset: 0, borderRadius: '50%',
-                        background: 'rgba(0,0,0,0.4)', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
-                        opacity: 0, transition: 'opacity 0.2s'
-                      }}
-                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                        onMouseLeave={e => e.currentTarget.style.opacity = '0'}
-                      >
-                        <Camera size={12} color="white" />
-                      </div>
-                    )}
                   </div>
-                ) : (
-                  <ChevronRight size={10} color="#cbd5e1" />
                 )}
-                <span style={{ fontSize: '0.9rem', color: isReserved ? 'var(--color-text-light)' : 'var(--color-text-main)', fontWeight: '600' }}>
-                    {capitalizeName(itemName)} {isReserved && <span style={{fontSize: '0.65rem', fontWeight: '800', backgroundColor: 'var(--color-bg-body)', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px'}}>SYSTEM</span>}
+                <span style={{ fontSize: '0.88rem', color: 'var(--color-text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {capitalizeName(itemName)}
+                  {isReserved && <span style={{ fontSize: '0.62rem', fontWeight: 500, color: 'var(--color-text-muted)', marginLeft: 8 }}>system</span>}
                 </span>
               </div>
               {!isReserved && (
-                <button className="icon-action-btn" onClick={() => handleDelete(category, index)} style={{ color: '#f43f5e', padding: '6px' }} title="Delete">
-                  <Trash2 size={15} />
+                <button
+                  onClick={() => handleDelete(category, index)}
+                  title="Delete"
+                  style={{ border: 'none', background: 'none', color: 'var(--color-text-light)', padding: 4, cursor: 'pointer' }}
+                >
+                  <Trash2 size={14} />
                 </button>
               )}
             </div>
           );
-        })}
-        {settings[category]?.length === 0 && (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-            <Plus size={24} style={{ opacity: 0.3 }} />
-            <span style={{ fontSize: '0.85rem', fontStyle: 'italic' }}>No items defined.</span>
-          </div>
-        )}
-      </div>
-    </div>
+        }}
+      />
+    </section>
   );
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '80px', paddingLeft: 'clamp(12px, 2vw, 20px)', paddingRight: 'clamp(12px, 2vw, 20px)' }}>
-      <div style={{ paddingTop: '20px', marginBottom: '24px' }}>
-        <GlobalHeader 
-          placeholder="Search settings..." 
-        />
-      </div>
-
-      <div style={{ marginBottom: '40px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <div style={{ backgroundColor: '#1e293b', padding: '8px', borderRadius: '10px', color: 'white' }}>
-            <Settings size={19} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: '600', color: 'var(--color-text-main)', letterSpacing: '-0.02em' }}>Drop Tracker Settings</h1>
-          </div>
-        </div>
-        <p style={{ opacity: 0.6, fontSize: '1rem', marginLeft: '52px', fontWeight: '500' }}>Micro-configure your team lifecycle and status mapping.</p>
-      </div>
+    <div style={{ maxWidth: 1400 }}>
+      <PageHeader
+        title="Settings"
+        subtitle="Configure statuses, priorities, and project domains for your workspace."
+      />
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
-        gap: '24px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+        gap: 40
       }}>
-        {renderSection('statuses', 'Active Statuses', Activity)}
-        {renderSection('priorities', 'Priority Levels', Signal)}
-        {renderSection('projects', 'Project Domains', Folder)}
-      </div>
-
-      <div style={{ marginTop: '48px', padding: '24px', backgroundColor: 'var(--color-bg-body)', borderRadius: '16px', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <ShieldCheck size={28} color="#22c55e" />
-        <div>
-          <h4 style={{ fontWeight: '800', color: 'var(--color-text-main)', fontSize: '0.9rem' }}>System Integrity Enforced</h4>
-          <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>All changes made here will reflect globally across all active bug reports and filters immediately.</p>
-        </div>
+        {renderSection('statuses',   'Status')}
+        {renderSection('priorities', 'Priorities')}
+        {renderSection('projects',   'Projects')}
       </div>
 
       {/* AVATAR PICKER MODAL */}
@@ -593,12 +549,37 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* DELETE SETTINGS ITEM CONFIRM MODAL */}
+      {deletingItem && (
+        <div className="modal-overlay" style={{ zIndex: 20000 }} onClick={() => setDeletingItem(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px', padding: '32px', textAlign: 'center' }}>
+            <h3 style={{ marginBottom: '8px' }}>
+              Delete {deletingItem.category.slice(0, -1).replace(/^./, c => c.toUpperCase())}?
+            </h3>
+            <div style={{ marginBottom: '16px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--color-bg-body)', border: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--color-primary)', letterSpacing: '0.05em', marginBottom: '4px', textTransform: 'uppercase' }}>
+                {deletingItem.category}
+              </div>
+              <div style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-text-main)', wordBreak: 'break-word' }}>
+                {capitalizeName(deletingItem.name)}
+              </div>
+            </div>
+            <p style={{ marginBottom: '28px', color: 'var(--color-text-muted)' }}>This action cannot be undone.</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDeletingItem(null)}>Cancel</button>
+              <button className="btn btn-danger" style={{ flex: 1, backgroundColor: '#ef4444', color: 'white' }} onClick={confirmDelete} autoFocus>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div style={{
           position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-          backgroundColor: '#1e293b', color: 'white', padding: '12px 24px',
+          backgroundColor: '#ffffff', color: '#0f172a', padding: '12px 24px',
           borderRadius: '12px', fontSize: '0.85rem', fontWeight: '600',
-          zIndex: 50000, boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+          zIndex: 50000, boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+          border: '1px solid var(--color-border)',
           animation: 'fadeIn 0.3s ease-out'
         }}>{toast}</div>
       )}

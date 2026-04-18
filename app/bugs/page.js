@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
-import { Plus, Bug as BugIcon, Edit3, Trash2, Search, Download, Link2, ChevronDown, Check, X, Bell, ExternalLink, MailOpen, Calendar, ArrowUpDown } from 'lucide-react';
+import { Plus, Edit3, Trash2, Download, Link2, ChevronDown, X, ArrowUpDown } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import BugForm from '../components/BugForm';
 import BugDetails from '../components/BugDetails';
 import CustomDropdown from '../components/CustomDropdown';
+import PRToBugModal from '../components/PRToBugModal';
 import { useAuth, capitalizeName } from '../components/AuthProvider';
-import GlobalHeader from '../components/GlobalHeader';
+import PageHeader from '../components/PageHeader';
 import LoadingOverlay from '../components/LoadingOverlay';
 import AdvancedDateFilter from '../components/AdvancedDateFilter';
 
@@ -14,17 +15,24 @@ import AdvancedDateFilter from '../components/AdvancedDateFilter';
 function BugManagement() {
   const searchParams = useSearchParams();
   const projectParam = searchParams.get('project');
+  const bugIdParam = searchParams.get('bug');
 
-  const [bugs, setBugs] = useState([]);
+  const { currentReporter, showUserSelection: globalShowUserSelection, globalSearchQuery, setGlobalSearchQuery, globalBugs, globalSettings } = useAuth();
+
+  const [bugs, setBugs] = useState(() => Array.isArray(globalBugs) ? globalBugs : []);
   const [filteredBugs, setFilteredBugs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const BUGS_PER_PAGE = 15;
-  const [settings, setSettings] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState(() => globalSettings || {});
+  const [loading, setLoading] = useState(!(globalBugs && globalBugs.length > 0 && globalSettings));
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const initialBug = (() => {
+    if (!bugIdParam || !Array.isArray(globalBugs)) return null;
+    return globalBugs.find(b => b.id === bugIdParam) || null;
+  })();
+  const [isDetailsOpen, setIsDetailsOpen] = useState(!!initialBug);
   const [editingBug, setEditingBug] = useState(null);
-  const [viewingBug, setViewingBug] = useState(null);
+  const [viewingBug, setViewingBug] = useState(initialBug);
 
   const [selectedProjects, setSelectedProjects] = useState(projectParam ? [projectParam] : []);
   const [selectedStatus, setSelectedStatus] = useState([]);
@@ -36,6 +44,7 @@ function BugManagement() {
   const [sortOrder, setSortOrder] = useState('desc'); // Current UI view sort
   const [toast, setToast] = useState({ message: "", visible: false });
   const [deletingBug, setDeletingBug] = useState(null);
+  const [prModalOpen, setPrModalOpen] = useState(false);
 
   // Bulk selection state
   const [selectedBugs, setSelectedBugs] = useState(new Set());
@@ -43,8 +52,6 @@ function BugManagement() {
   const [hoveredBugId, setHoveredBugId] = useState(null);
   const [prStatuses, setPrStatuses] = useState({});
   const [selectionMode, setSelectionMode] = useState(false);
-
-  const { currentReporter, showUserSelection: globalShowUserSelection, globalSearchQuery, setGlobalSearchQuery } = useAuth();
 
   const PROJECT_MODULES = {
     "Pharmacy ERP": [
@@ -153,6 +160,12 @@ function BugManagement() {
 
 
   useEffect(() => {
+    if (globalBugs && globalBugs.length > 0) setBugs(globalBugs);
+    if (globalSettings) setSettings(globalSettings);
+    if (globalBugs && globalBugs.length > 0 && globalSettings) setLoading(false);
+  }, [globalBugs, globalSettings]);
+
+  useEffect(() => {
     Promise.all([
       fetch('/api/bugs').then(res => res.ok ? res.json() : { bugs: [] }),
       fetch('/api/settings').then(res => res.ok ? res.json() : { projects: [], statuses: [], priorities: [], assignees: [] })
@@ -203,6 +216,15 @@ function BugManagement() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!bugIdParam || bugs.length === 0) return;
+    const target = bugs.find(b => b.id === bugIdParam);
+    if (target) {
+      setViewingBug(target);
+      setIsDetailsOpen(true);
+    }
+  }, [bugIdParam, bugs]);
 
   useEffect(() => {
     let result = bugs;
@@ -544,58 +566,49 @@ function BugManagement() {
   return (
     <div style={{
       width: '100%',
-      padding: '0 20px 120px',
-      backgroundColor: 'var(--color-bg-body)',
+      paddingBottom: '120px',
       minHeight: '100vh',
       animation: 'fadeIn 0.4s ease-out'
     }}>
-      {/* Sticky header section with premium blur */}
       <div style={{
         position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        backgroundColor: 'color-mix(in srgb, var(--color-bg-body) 90%, transparent)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        paddingTop: '20px',
-        paddingBottom: '16px',
-        margin: '0 -20px',
-        paddingLeft: '20px',
-        paddingRight: '20px',
-        borderBottom: '1px solid var(--color-border)',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+        top: -28,
+        zIndex: 50,
+        backgroundColor: 'var(--chrome-bg-raised)',
+        margin: '-28px -32px 0',
+        padding: '28px 32px 14px',
+        borderBottom: '1px solid var(--chrome-border)'
       }}>
-        {/* Top bar: Global Header with Search & Notifications */}
-        <GlobalHeader
-          placeholder="Search bugs, projects, team..."
+        <PageHeader
+          context={selectedProjects.length === 1 ? selectedProjects[0] : 'All projects'}
+          title={selectedProjects.length === 1 ? `${selectedProjects[0]} Bugs` : 'Bug Management'}
+          subtitle={`Track, manage, and resolve bugs across projects · ${filteredBugs.length} total`}
+          actions={
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="topbar-pill"
+                onClick={() => setPrModalOpen(true)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 999,
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-text-main)',
+                  fontSize: '0.82rem', fontWeight: 500, cursor: 'pointer'
+                }}>
+                <Link2 size={15} strokeWidth={2.2} /> From PR
+              </button>
+              <button
+                className="topbar-pill primary"
+                onClick={() => { setEditingBug(null); setIsFormOpen(true); }}
+              >
+                <Plus size={15} strokeWidth={2.2} /> Create Bug
+              </button>
+            </div>
+          }
         />
 
-        {/* Second bar: Title & Create Action */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: 'clamp(1.1rem, 3vw, 1.75rem)', fontWeight: '600', marginBottom: '0', letterSpacing: '-0.02em' }}>
-                {selectedProjects.length === 1 ? `${selectedProjects[0]} Bugs` : 'Bug Management'}
-              </h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
-                <span style={{ backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)', padding: '4px 12px', borderRadius: '99px', fontSize: '0.75rem', fontWeight: '700' }}>
-                  {filteredBugs.length} Total
-                </span>
-              </div>
-            </div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', fontWeight: '500' }}>Track, manage, and resolve bugs across projects</p>
-          </div>
-
-          <button
-            className="btn btn-primary"
-            style={{ height: '38px', padding: '0 14px', borderRadius: '10px', fontWeight: '700', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', flexShrink: 0, whiteSpace: 'nowrap' }}
-            onClick={() => { setEditingBug(null); setIsFormOpen(true); }}
-          >
-            <Plus size={18} strokeWidth={2.5} /> Create Bug
-          </button>
-        </div>
-
-        <div className="filter-bar-group" style={{ marginBottom: '16px' }}>
+        <div className="filter-bar-group" style={{ marginBottom: 0 }}>
           <CustomDropdown label="All Reporter" options={reporterOptions} selected={selectedReporter} onSelect={(val) => toggleFilter(selectedReporter, setSelectedReporter, val)} isMulti />
           <CustomDropdown label="All Project" options={settings.projects} selected={selectedProjects} onSelect={(val) => toggleFilter(selectedProjects, setSelectedProjects, val)} isMulti />
           <CustomDropdown label="All Status" options={settings.statuses} selected={selectedStatus} onSelect={(val) => toggleFilter(selectedStatus, setSelectedStatus, val)} isMulti />
@@ -624,7 +637,7 @@ function BugManagement() {
         </div>{/* end filter-bar-group */}
 
         {/* Action Hub Row (Specialized Tools) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
           <button
             className="btn btn-outline"
             title="Multi Delete"
@@ -643,16 +656,18 @@ function BugManagement() {
             <Trash2 size={16} /> Multi Delete
           </button>
 
-          <AdvancedDateFilter 
-            startDate={startDate} 
-            endDate={endDate} 
+          <AdvancedDateFilter
+            startDate={startDate}
+            endDate={endDate}
             onRangeChange={(start, end) => {
               setStartDate(start);
               setEndDate(end);
-            }} 
+            }}
           />
         </div>
+      </div>{/* end sticky header */}
 
+      <div>
         {/* Active Filter Chips */}
         {(selectedProjects.length > 0 || selectedStatus.length > 0 || selectedPriority.length > 0 || selectedAssignee.length > 0 || selectedReporter.length > 0 || globalSearchQuery || startDate || endDate) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
@@ -701,23 +716,54 @@ function BugManagement() {
             <button onClick={handleClearFilters} className="clear-all-btn">Clear All</button>
           </div>
         )}
-      </div>{/* end sticky header */}
+      </div>{/* end action/chips wrapper */}
 
       <div style={{ paddingTop: '12px' }}>
         {filteredBugs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '64px', opacity: 0.5 }}>
-            <BugIcon size={48} style={{ marginBottom: '16px', margin: '0 auto' }} color="var(--color-text-muted)" />
-            {bugs.length === 0 ? (
-              <>
-                <h2 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>No bugs yet!</h2>
-                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Press <strong>Ctrl+N</strong> or the <strong>+ New Bug</strong> button to create your first report.</p>
-              </>
-            ) : (
-              <>
-                <h2 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>No matching bugs</h2>
-                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Try adjusting your filters or search terms.</p>
-              </>
-            )}
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', textAlign: 'center',
+            padding: '56px 20px 40px', gap: 18, color: 'var(--color-text-muted)'
+          }}>
+            <svg width="200" height="150" viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <ellipse cx="100" cy="138" rx="58" ry="4" fill="currentColor" opacity="0.08" />
+              <circle cx="82" cy="70" r="32" fill="none" stroke="currentColor" strokeOpacity="0.4" strokeWidth="3" />
+              <line x1="105" y1="93" x2="130" y2="118" stroke="currentColor" strokeOpacity="0.4" strokeWidth="4" strokeLinecap="round" />
+              <line x1="69" y1="64" x2="62" y2="60" stroke="#9f1239" strokeWidth="1.6" strokeLinecap="round" />
+              <line x1="69" y1="70" x2="60" y2="70" stroke="#9f1239" strokeWidth="1.6" strokeLinecap="round" />
+              <line x1="69" y1="76" x2="62" y2="80" stroke="#9f1239" strokeWidth="1.6" strokeLinecap="round" />
+              <line x1="95" y1="64" x2="102" y2="60" stroke="#9f1239" strokeWidth="1.6" strokeLinecap="round" />
+              <line x1="95" y1="70" x2="104" y2="70" stroke="#9f1239" strokeWidth="1.6" strokeLinecap="round" />
+              <line x1="95" y1="76" x2="102" y2="80" stroke="#9f1239" strokeWidth="1.6" strokeLinecap="round" />
+              <ellipse cx="82" cy="70" rx="13" ry="15" fill="#f43f5e" />
+              <line x1="82" y1="56" x2="82" y2="84" stroke="#9f1239" strokeWidth="1.4" strokeLinecap="round" />
+              <circle cx="82" cy="55" r="4" fill="#9f1239" />
+              <line x1="80" y1="52" x2="76" y2="47" stroke="#9f1239" strokeWidth="1.5" strokeLinecap="round" />
+              <line x1="84" y1="52" x2="88" y2="47" stroke="#9f1239" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="76" cy="47" r="1.5" fill="#9f1239" />
+              <circle cx="88" cy="47" r="1.5" fill="#9f1239" />
+              <circle cx="76" cy="66" r="2" fill="#9f1239" />
+              <circle cx="88" cy="66" r="2" fill="#9f1239" />
+              <circle cx="78" cy="77" r="1.6" fill="#9f1239" />
+              <circle cx="86" cy="77" r="1.6" fill="#9f1239" />
+            </svg>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 380 }}>
+              {bugs.length === 0 ? (
+                <>
+                  <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-main)' }}>No bugs yet</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                    Press <strong>Ctrl+N</strong> or the <strong>+ Create Bug</strong> button to create your first report.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-main)' }}>No matching bugs</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                    Try adjusting your filters or clearing the search.
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         ) : (
           <div>
@@ -899,6 +945,25 @@ function BugManagement() {
           saving={saving}
         />
 
+        {/* Create from PR Modal */}
+        {prModalOpen && (
+          <PRToBugModal
+            onClose={() => setPrModalOpen(false)}
+            settings={settings}
+            currentReporter={currentReporter}
+            saving={saving}
+            onCreate={async (data) => {
+              await handleSaveBug({
+                ...data,
+                status: 'Open',
+                project: (settings.projects && settings.projects[0]) || 'General',
+                module: 'General'
+              }, true);
+              setPrModalOpen(false);
+            }}
+          />
+        )}
+
         {/* Delete Modal */}
         {deletingBug && (
           <div className="modal-overlay" style={{ zIndex: 2000 }} onClick={() => setDeletingBug(null)}>
@@ -923,8 +988,9 @@ function BugManagement() {
 
         {/* Toast */}
         <div style={{
-          position: 'fixed', bottom: '32px', right: '32px', backgroundColor: 'var(--color-bg-surface)', padding: '12px 24px', borderRadius: '12px',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', zIndex: 9999, transition: 'all 0.3s',
+          position: 'fixed', bottom: '32px', right: '32px', backgroundColor: '#ffffff', color: '#0f172a',
+          padding: '12px 24px', borderRadius: '12px', border: '1px solid var(--color-border)',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.12)', zIndex: 9999, transition: 'all 0.3s',
           transform: toast.visible ? 'translateY(0)' : 'translateY(100px)', opacity: toast.visible ? 1 : 0
         }}>
           {toast.message}
@@ -934,7 +1000,7 @@ function BugManagement() {
         {undoDelete && (
           <div style={{
             position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)',
-            backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-main)',
+            backgroundColor: '#ffffff', color: 'var(--color-text-main)',
             padding: '14px 24px', borderRadius: '14px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
             border: '1px solid var(--color-border)',

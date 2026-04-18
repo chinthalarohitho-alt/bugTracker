@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, AlertTriangle, CheckCircle2, Projector, User, Calendar, ArrowRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { CheckCircle2, Projector, User, Calendar, ArrowRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 import { arc } from 'd3-shape';
 import { animate, motion } from 'framer-motion';
-import GlobalHeader from '../components/GlobalHeader';
+import PageHeader from '../components/PageHeader';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { useAuth } from '../components/AuthProvider';
 
 const AnimatedPath = ({ item, startAngle, endAngle, pathGenerator, tooltip, setTooltip }) => {
   // Start from 0 to create a "sweep-in" intro animation from the top (0 rad)
@@ -128,7 +129,7 @@ const PriorityTrendChart = ({ bugs }) => {
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   if (!bugs || bugs.length === 0) return (
-    <div className="card" style={{ padding: '32px', backgroundColor: 'var(--color-bg-surface)', borderRadius: '24px', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-light)', fontSize: '0.9rem' }}>
+    <div className="card" style={{ padding: '32px', backgroundColor: 'var(--chrome-bg-raised)', borderRadius: '24px', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-light)', fontSize: '0.9rem' }}>
       No bug data to display.
     </div>
   );
@@ -308,12 +309,12 @@ const PriorityTrendChart = ({ bugs }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       style={{ 
-        position: 'relative', 
-        padding: '20px 24px', 
-        backgroundColor: 'var(--color-bg-surface)', 
-        borderRadius: '24px', 
-        border: '1px solid var(--color-border)', 
-        boxShadow: '0 4px 20px -4px rgba(0,0,0,0.06)', 
+        position: 'relative',
+        padding: '20px 24px',
+        backgroundColor: 'var(--chrome-bg-raised)',
+        borderRadius: '24px',
+        border: '1px solid var(--color-border)',
+        boxShadow: '0 4px 20px -4px rgba(0,0,0,0.06)',
         display: 'flex', 
         flexDirection: 'column' 
       }}>
@@ -329,8 +330,8 @@ const PriorityTrendChart = ({ bugs }) => {
       {hoverBucketIdx !== null && tooltipData.length > 0 && (
         <div style={{
           position: 'fixed', left: tooltipPos.x + 16, top: tooltipPos.y - 10,
-          backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-main)', padding: '16px', borderRadius: '20px',
-          fontSize: '0.85rem', pointerEvents: 'none', zIndex: 1000, 
+          backgroundColor: 'var(--chrome-bg-raised)', color: 'var(--color-text-main)', padding: '16px', borderRadius: '20px',
+          fontSize: '0.85rem', pointerEvents: 'none', zIndex: 1000,
           boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0,0,0,0.05)',
           backdropFilter: 'blur(12px)', border: '1px solid var(--color-border)',
           minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '16px'
@@ -459,9 +460,17 @@ const PriorityTrendChart = ({ bugs }) => {
 };
 
 export default function AnalyticsPage() {
-  const [bugs, setBugs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { globalBugs } = useAuth();
+  const [bugs, setBugs] = useState(() => Array.isArray(globalBugs) ? globalBugs : []);
+  const [loading, setLoading] = useState(!(globalBugs && globalBugs.length > 0));
   const [hiddenProjects, setHiddenProjects] = useState(new Set());
+
+  useEffect(() => {
+    if (globalBugs && globalBugs.length > 0) {
+      setBugs(globalBugs);
+      setLoading(false);
+    }
+  }, [globalBugs]);
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -591,52 +600,22 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <main style={{ padding: '20px 20px 80px', backgroundColor: 'var(--color-bg-body)', minHeight: '100vh' }}>
-      <div style={{ marginBottom: '16px' }}>
-        <GlobalHeader 
-          placeholder="Search analytics..." 
-        />
-      </div>
+    <main style={{ maxWidth: 1400 }}>
+      <PageHeader
+        title="Analytics"
+        subtitle="Project health and bug resolution trends across your workspace."
+      />
 
-      <header style={{ marginBottom: '16px' }}>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '8px' }}>Product Insights & Analytics</h1>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Real-time data synchronization with project health and resolution trends.</p>
-      </header>
-
-      {/* Global Key Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-        <div className="card stat-card" style={{ padding: '16px', backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-surface))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
-              <BarChart3 size={20} />
-            </div>
-            <div style={{ padding: '4px 8px', backgroundColor: 'var(--color-bg-body)', color: '#0ea5e9', fontSize: '0.65rem', fontWeight: '600', borderRadius: '6px', height: 'fit-content' }}>+12% vs last mo</div>
-          </div>
-          <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Total Bug Reports</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '600', color: 'var(--color-text-main)' }}>{stats.total}</div>
-        </div>
-
-        <div className="card stat-card" style={{ padding: '16px', backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'color-mix(in srgb, #22c55e 12%, var(--color-bg-surface))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#22c55e' }}>
-              <TrendingUp size={20} />
-            </div>
-            <div style={{ padding: '4px 8px', backgroundColor: 'color-mix(in srgb, #22c55e 12%, var(--color-bg-surface))', color: '#22c55e', fontSize: '0.65rem', fontWeight: '600', borderRadius: '6px', height: 'fit-content' }}>Healthy</div>
-          </div>
-          <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Resolution Rate</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '600', color: 'var(--color-text-main)' }}>{stats.resolutionRate}%</div>
-        </div>
-
-        <div className="card stat-card" style={{ padding: '24px', backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'var(--color-bg-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
-              <AlertTriangle size={20} />
-            </div>
-            <div style={{ padding: '4px 8px', backgroundColor: 'var(--color-bg-body)', color: '#f43f5e', fontSize: '0.65rem', fontWeight: '600', borderRadius: '6px', height: 'fit-content' }}>Action Needed</div>
-          </div>
-          <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Critical Issues</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '600', color: 'var(--color-text-main)' }}>{stats.critical}</div>
-        </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        borderTop: '1px solid var(--chrome-border)',
+        borderBottom: '1px solid var(--chrome-border)',
+        marginBottom: 28
+      }}>
+        <StatCell label="Total Bugs"      value={stats.total} />
+        <StatCell label="Resolution Rate" value={`${stats.resolutionRate}%`} tint={stats.resolutionRate >= 60 ? '#22c55e' : null} />
+        <StatCell label="Critical"        value={stats.critical} tint={stats.critical > 0 ? '#ef4444' : null} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 2fr) minmax(380px, 1fr)', gap: '16px' }}>
@@ -650,7 +629,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          style={{ padding: '24px', backgroundColor: 'var(--color-bg-surface)', borderRadius: '24px', border: '1px solid var(--color-border)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          style={{ padding: '24px', backgroundColor: 'var(--chrome-bg-raised)', borderRadius: '24px', border: '1px solid var(--color-border)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', marginBottom: '20px' }}>
             <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Project Distribution</div>
           </div>
@@ -715,5 +694,26 @@ export default function AnalyticsPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+function StatCell({ label, value, tint }) {
+  return (
+    <div style={{
+      padding: '18px 20px',
+      borderRight: '1px solid var(--chrome-border)',
+      display: 'flex', flexDirection: 'column', gap: 6
+    }}>
+      <div style={{
+        fontSize: '1.8rem', fontWeight: 600,
+        color: tint || 'var(--color-text-main)',
+        lineHeight: 1, letterSpacing: '-0.02em'
+      }}>{value}</div>
+      <div style={{
+        fontSize: '0.72rem', fontWeight: 500,
+        color: 'var(--color-text-muted)',
+        textTransform: 'uppercase', letterSpacing: '0.06em'
+      }}>{label}</div>
+    </div>
   );
 }

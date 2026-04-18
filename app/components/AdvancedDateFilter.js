@@ -155,7 +155,7 @@ const AdvancedDateFilter = ({
           className="crisply-popover"
           style={{
             position: 'absolute', top: 'calc(100% + 12px)', left: 0, width: isRange ? '540px' : '280px',
-            backgroundColor: 'var(--color-bg-surface)', borderRadius: '16px', border: '1px solid var(--color-border)',
+            backgroundColor: 'var(--chrome-bg-raised)', borderRadius: '16px', border: '1px solid var(--color-border)',
             boxShadow: '0 20px 50px -12px rgba(0,0,0,0.15)', padding: '18px', zIndex: 2000,
             animation: 'popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
             transition: 'width 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
@@ -177,7 +177,7 @@ const AdvancedDateFilter = ({
                   {operators.find(o => o.id === operator)?.label} <ChevronDown size={12} />
                 </button>
                 {isOpDropdownOpen && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', width: '200px', backgroundColor: 'var(--color-bg-surface)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid var(--color-border-light)', zIndex: 2100 }}>
+                  <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', width: '200px', backgroundColor: 'var(--chrome-bg-raised)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid var(--color-border-light)', zIndex: 2100 }}>
                     {operators.map(op => (
                       <div 
                         key={op.id} 

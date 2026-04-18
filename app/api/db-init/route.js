@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/requireAuth';
+import { requireAuth } from '@/bugTracker/lib/requireAuth';
 
 const getSQL = () => {
   if (!process.env.DATABASE_URL) return null;
@@ -62,6 +62,48 @@ export async function GET() {
         data JSONB NOT NULL
       );
     `;
+
+    // 3b. Create DESIGN_RESOURCES table (per-user design hub)
+    await sql`
+      CREATE TABLE IF NOT EXISTS design_resources (
+        id TEXT PRIMARY KEY,
+        owner TEXT NOT NULL,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        type TEXT DEFAULT 'other',
+        notes TEXT DEFAULT '',
+        tags JSONB DEFAULT '[]'::jsonb,
+        projects JSONB DEFAULT '[]'::jsonb,
+        pinned BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_accessed_at TIMESTAMP WITH TIME ZONE
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_design_resources_owner ON design_resources(owner)`;
+
+    // 3c. Create SALES_CUSTOMERS table (per-Sales-Manager customer pipeline)
+    await sql`
+      CREATE TABLE IF NOT EXISTS sales_customers (
+        id TEXT PRIMARY KEY,
+        owner TEXT NOT NULL,
+        name TEXT NOT NULL,
+        contact_person TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        email TEXT DEFAULT '',
+        city TEXT DEFAULT '',
+        state TEXT DEFAULT '',
+        stage TEXT DEFAULT 'lead',
+        product TEXT DEFAULT '',
+        estimated_value NUMERIC DEFAULT 0,
+        last_contact_at TIMESTAMP WITH TIME ZONE,
+        next_follow_up_at TIMESTAMP WITH TIME ZONE,
+        notes TEXT DEFAULT '',
+        tags JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_sales_customers_owner ON sales_customers(owner)`;
 
     // 4. Migration: Ensure missing columns exist in existing tables
     const migrations = [

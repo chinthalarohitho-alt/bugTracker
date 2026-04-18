@@ -171,6 +171,8 @@ export function AuthProvider({ children, settings }) {
   const pollFailCount = useRef(0);
 
   useEffect(() => {
+    if (sessionStatus !== 'authenticated') return;
+
     fetchNotifications();
     fetchGlobalData();
 
@@ -189,12 +191,23 @@ export function AuthProvider({ children, settings }) {
     };
     timer = setTimeout(poll, 30000);
     return () => clearTimeout(timer);
-  }, [currentReporter]);
+  }, [currentReporter, sessionStatus]);
 
   useEffect(() => {
     if (!currentReporter) return;
-    setUserRole(getRoleForProfile(currentReporter));
-  }, [currentReporter]);
+    // Prefer localStorage override; otherwise fall back to the DB profile's role
+    // so users see their real role on a fresh browser.
+    const stored = getRoleForProfile(currentReporter);
+    if (stored && stored !== 'Team Member') {
+      setUserRole(stored);
+      return;
+    }
+    const profile = (globalSettings?.assignees || []).find(
+      a => (typeof a === 'object' ? a.name : a) === currentReporter
+    );
+    const dbRole = (profile && typeof profile === 'object' && profile.role) || '';
+    setUserRole(dbRole || stored || 'Team Member');
+  }, [currentReporter, globalSettings]);
 
   useEffect(() => {
     if (sessionStatus === 'loading') return;
@@ -1083,9 +1096,10 @@ export function AuthProvider({ children, settings }) {
           {toastMessage && (
             <div style={{
               position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-              backgroundColor: '#1e293b', color: 'white', padding: '12px 24px',
+              backgroundColor: '#ffffff', color: '#0f172a', padding: '12px 24px',
               borderRadius: '12px', fontSize: '0.85rem', fontWeight: '600',
-              zIndex: 50000, boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+              zIndex: 50000, boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+              border: '1px solid var(--color-border)',
               animation: 'fadeIn 0.3s ease-out'
             }}>{toastMessage}</div>
           )}
@@ -1097,9 +1111,10 @@ export function AuthProvider({ children, settings }) {
   const toastEl = toastMessage ? (
     <div style={{
       position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-      backgroundColor: '#1e293b', color: 'white', padding: '12px 24px',
+      backgroundColor: '#ffffff', color: '#0f172a', padding: '12px 24px',
       borderRadius: '12px', fontSize: '0.85rem', fontWeight: '600',
-      zIndex: 50000, boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+      zIndex: 50000, boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+      border: '1px solid var(--color-border)',
       animation: 'fadeIn 0.3s ease-out'
     }}>{toastMessage}</div>
   ) : null;
