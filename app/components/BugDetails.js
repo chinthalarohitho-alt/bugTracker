@@ -25,6 +25,20 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
     setPrStatuses({});
   }, [bug?.id]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      if (viewingCurl) { setViewingCurl(null); return; }
+      if (showConfirmModal) { setShowConfirmModal(false); return; }
+      if (editingField) { setEditingField(null); return; }
+      e.preventDefault();
+      attemptClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, viewingCurl, showConfirmModal, editingField, tempValues, bug?.id]);
+
   // Fetch GitHub PR statuses
   useEffect(() => {
     if (!bug) return;
@@ -439,7 +453,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
         const username = part.substring(1);
         return (
           <span key={i} style={{ 
-            color: 'var(--color-primary)', 
+            color: 'var(--color-text-main)', 
             backgroundColor: 'rgba(59, 130, 246, 0.1)', 
             padding: '2px 6px', 
             borderRadius: '4px', 
@@ -461,9 +475,9 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {hasChanges ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', animation: 'fadeIn 0.2s' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unsaved edits...</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unsaved edits...</span>
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  <button onClick={() => handleSaveAll(false)} style={{ padding: '4px 12px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', backgroundColor: '#2563eb', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Save size={12} /> Save</button>
+                  <button onClick={() => handleSaveAll(false)} style={{ padding: '4px 12px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', backgroundColor: '#0f172a', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Save size={12} /> Save</button>
                   <button onClick={() => { setTempValues({}); setEditingField(null); }} style={{ padding: '4px 12px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><RotateCcw size={12} /> Revert</button>
                 </div>
               </div>
@@ -503,15 +517,15 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
         <div className="drawer-body">
           <div className="drawer-main" style={{ flex: 1, padding: '32px', overflowY: 'auto', borderRight: '1px solid var(--color-border-light)', cursor: 'default' }}>
             {editingField === 'title' ? (
-              <input autoFocus className="inline-edit-input" style={{ fontSize: '1.75rem', fontWeight: '600', marginBottom: '24px', width: '100%', padding: '4px 8px', borderRadius: '8px', border: '2px solid var(--color-primary)', outline: 'none' }} value={tempValues.title !== undefined ? tempValues.title : bug.title} onChange={(e) => updateTempValue('title', e.target.value)} onBlur={() => setEditingField(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingField(null); }} />
+              <input autoFocus className="inline-edit-input" style={{ fontSize: '1.75rem', fontWeight: '600', marginBottom: '24px', width: '100%', padding: '4px 8px', borderRadius: '8px', border: '2px solid var(--color-text-main)', outline: 'none' }} value={tempValues.title !== undefined ? tempValues.title : bug.title} onChange={(e) => updateTempValue('title', e.target.value)} onBlur={() => setEditingField(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingField(null); }} />
             ) : (
               <h2 onDoubleClick={() => startEdit('title', bug.title)} className="hover-editable-field" style={{ fontSize: '1.75rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: '24px', lineHeight: '1.2', cursor: 'text', border: '1px solid transparent', padding: '4px 0' }}>{tempValues.title !== undefined ? tempValues.title : bug.title}</h2>
             )}
 
-            <div style={{ marginBottom: '40px' }}><h4 className="meta-label"><Tag size={14} /> Description</h4> {editingField === 'description' ? ( <textarea autoFocus className="inline-edit-input" style={{ width: '100%', minHeight: '120px', padding: '12px', borderRadius: '10px', border: '1px solid var(--color-primary)', fontSize: '1.05rem', lineHeight: '1.65', outline: 'none' }} value={tempValues.description !== undefined ? tempValues.description : bug.description} onChange={(e) => updateTempValue('description', e.target.value)} onBlur={() => setEditingField(null)} /> ) : ( <div onDoubleClick={() => startEdit('description', bug.description)} className="hover-editable-field" style={{ fontSize: '1.05rem', color: 'var(--color-text-main)', lineHeight: '1.65', whiteSpace: 'pre-wrap', cursor: 'text', border: '1px solid transparent', padding: '8px 0', minHeight: '20px' }}> {tempValues.description !== undefined ? tempValues.description : (bug.description || 'Add description...')} </div> )} </div>             <div style={{ marginBottom: '40px' }}><h4 className="meta-label"><List size={14} /> Steps to Reproduce</h4> {editingField === 'stepsToReproduce' ? ( <textarea autoFocus className="inline-edit-input" style={{ width: '100%', minHeight: '150px', padding: '16px', borderRadius: '10px', border: '1px solid var(--color-primary)', fontSize: '0.95rem', lineHeight: '1.8', outline: 'none' }} value={tempValues.stepsToReproduce !== undefined ? tempValues.stepsToReproduce : bug.stepsToReproduce} onChange={(e) => updateTempValue('stepsToReproduce', e.target.value)} onBlur={() => setEditingField(null)} /> ) : ( <div onDoubleClick={() => startEdit('stepsToReproduce', bug.stepsToReproduce)} className="hover-editable-field" style={{ backgroundColor: 'var(--color-bg-body)', padding: '24px', borderRadius: '12px', fontSize: '0.95rem', border: '1px solid var(--color-border-light)', lineHeight: '1.8', color: 'var(--color-text-main)', cursor: 'text' }}> {(() => { const text = tempValues.stepsToReproduce !== undefined ? tempValues.stepsToReproduce : (bug.stepsToReproduce || ''); if (!text) return <span style={{ color: 'var(--color-text-light)', fontStyle: 'italic' }}>Double-click to add steps.</span>; const parts = text.split(/(\d+)\s*[.:)-]\s*/g); if (parts.length === 1) return <div style={{ whiteSpace: 'pre-wrap' }}>{text}</div>; const steps = []; if (parts[0].trim()) steps.push({ num: 1, content: parts[0].trim() }); for (let i = 1; i < parts.length; i += 2) { const num = parts[i]; const content = parts[i + 1] || ""; if (content.trim()) steps.push({ num, content: content.trim() }); } return steps.map((s, idx) => ( <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: idx === steps.length - 1 ? 0 : '12px' }}> <span style={{ fontWeight: '600', color: 'inherit', minWidth: '18px', flexShrink: 0, textAlign: 'right' }}>{s.num}.</span> <span style={{ whiteSpace: 'pre-wrap' }}>{s.content}</span> </div> )); })()} </div> )} </div>
+            <div style={{ marginBottom: '40px' }}><h4 className="meta-label"><Tag size={14} /> Description</h4> {editingField === 'description' ? ( <textarea autoFocus className="inline-edit-input" style={{ width: '100%', minHeight: '120px', padding: '12px', borderRadius: '10px', border: '1px solid var(--color-text-main)', fontSize: '1.05rem', lineHeight: '1.65', outline: 'none' }} value={tempValues.description !== undefined ? tempValues.description : bug.description} onChange={(e) => updateTempValue('description', e.target.value)} onBlur={() => setEditingField(null)} /> ) : ( <div onDoubleClick={() => startEdit('description', bug.description)} className="hover-editable-field" style={{ fontSize: '1.05rem', color: 'var(--color-text-main)', lineHeight: '1.65', whiteSpace: 'pre-wrap', cursor: 'text', border: '1px solid transparent', padding: '8px 0', minHeight: '20px' }}> {tempValues.description !== undefined ? tempValues.description : (bug.description || 'Add description...')} </div> )} </div>             <div style={{ marginBottom: '40px' }}><h4 className="meta-label"><List size={14} /> Steps to Reproduce</h4> {editingField === 'stepsToReproduce' ? ( <textarea autoFocus className="inline-edit-input" style={{ width: '100%', minHeight: '150px', padding: '16px', borderRadius: '10px', border: '1px solid var(--color-text-main)', fontSize: '0.95rem', lineHeight: '1.8', outline: 'none' }} value={tempValues.stepsToReproduce !== undefined ? tempValues.stepsToReproduce : bug.stepsToReproduce} onChange={(e) => updateTempValue('stepsToReproduce', e.target.value)} onBlur={() => setEditingField(null)} /> ) : ( <div onDoubleClick={() => startEdit('stepsToReproduce', bug.stepsToReproduce)} className="hover-editable-field" style={{ backgroundColor: 'var(--color-bg-body)', padding: '24px', borderRadius: '12px', fontSize: '0.95rem', border: '1px solid var(--color-border-light)', lineHeight: '1.8', color: 'var(--color-text-main)', cursor: 'text' }}> {(() => { const text = tempValues.stepsToReproduce !== undefined ? tempValues.stepsToReproduce : (bug.stepsToReproduce || ''); if (!text) return <span style={{ color: 'var(--color-text-light)', fontStyle: 'italic' }}>Double-click to add steps.</span>; const parts = text.split(/(\d+)\s*[.:)-]\s*/g); if (parts.length === 1) return <div style={{ whiteSpace: 'pre-wrap' }}>{text}</div>; const steps = []; if (parts[0].trim()) steps.push({ num: 1, content: parts[0].trim() }); for (let i = 1; i < parts.length; i += 2) { const num = parts[i]; const content = parts[i + 1] || ""; if (content.trim()) steps.push({ num, content: content.trim() }); } return steps.map((s, idx) => ( <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: idx === steps.length - 1 ? 0 : '12px' }}> <span style={{ fontWeight: '600', color: 'inherit', minWidth: '18px', flexShrink: 0, textAlign: 'right' }}>{s.num}.</span> <span style={{ whiteSpace: 'pre-wrap' }}>{s.content}</span> </div> )); })()} </div> )} </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
-              <div style={{ backgroundColor: 'var(--color-bg-body)', padding: '16px', borderRadius: '12px', borderLeft: '4px solid var(--color-primary)' }}>
-                <h4 className="meta-label">Expected Result</h4> {editingField === 'expectedResult' ? ( <textarea autoFocus style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-primary)', outline: 'none', fontSize: '0.9rem' }} value={tempValues.expectedResult !== undefined ? tempValues.expectedResult : bug.expectedResult} onChange={(e) => updateTempValue('expectedResult', e.target.value)} onBlur={() => setEditingField(null)} /> ) : ( <div onDoubleClick={() => startEdit('expectedResult', bug.expectedResult)} className="hover-editable-field" style={{ fontSize: '0.95rem', color: 'var(--color-text-muted)', minHeight: '16px', padding: '8px 0' }}> {tempValues.expectedResult !== undefined ? tempValues.expectedResult : (bug.expectedResult || '—')} </div> )} 
+              <div style={{ backgroundColor: 'var(--color-bg-body)', padding: '16px', borderRadius: '12px', borderLeft: '4px solid var(--color-text-main)' }}>
+                <h4 className="meta-label">Expected Result</h4> {editingField === 'expectedResult' ? ( <textarea autoFocus style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-text-main)', outline: 'none', fontSize: '0.9rem' }} value={tempValues.expectedResult !== undefined ? tempValues.expectedResult : bug.expectedResult} onChange={(e) => updateTempValue('expectedResult', e.target.value)} onBlur={() => setEditingField(null)} /> ) : ( <div onDoubleClick={() => startEdit('expectedResult', bug.expectedResult)} className="hover-editable-field" style={{ fontSize: '0.95rem', color: 'var(--color-text-muted)', minHeight: '16px', padding: '8px 0' }}> {tempValues.expectedResult !== undefined ? tempValues.expectedResult : (bug.expectedResult || '—')} </div> )} 
               </div>
               <div style={{ backgroundColor: 'color-mix(in srgb, #ef4444 8%, var(--color-bg-surface))', padding: '16px', borderRadius: '12px', borderLeft: '4px solid #ef4444' }}> <h4 className="meta-label" style={{ color: '#ef4444' }}><AlertCircle size={12} /> Actual Result</h4> {editingField === 'actualResult' ? ( <textarea autoFocus style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ef4444', outline: 'none', fontSize: '0.9rem' }} value={tempValues.actualResult !== undefined ? tempValues.actualResult : bug.actualResult} onChange={(e) => updateTempValue('actualResult', e.target.value)} onBlur={() => setEditingField(null)} /> ) : ( <div onDoubleClick={() => startEdit('actualResult', bug.actualResult)} className="hover-editable-field" style={{ fontSize: '0.95rem', color: '#ef4444', fontWeight: '500', minHeight: '16px', padding: '8px 0' }}> {tempValues.actualResult !== undefined ? tempValues.actualResult : (bug.actualResult || '—')} </div> )} </div>
             </div>
@@ -522,7 +536,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>GitHub PR Links</div>
-                 <button onClick={addPr} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '700', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>
+                 <button onClick={addPr} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '700', background: '#0f172a', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>
                     <Plus size={12} /> Add PR
                  </button>
                </div>
@@ -530,7 +544,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                   {getPrsArray().map((pr, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {editingField === `pr-${idx}` ? (
-                        <input autoFocus style={{ flex: 1, padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--color-primary)', outline: 'none', fontSize: '0.9rem' }} value={pr} onChange={(e) => updatePrValue(idx, e.target.value)} onBlur={() => setEditingField(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingField(null); }} />
+                        <input autoFocus style={{ flex: 1, padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--color-text-main)', outline: 'none', fontSize: '0.9rem' }} value={pr} onChange={(e) => updatePrValue(idx, e.target.value)} onBlur={() => setEditingField(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingField(null); }} />
                       ) : (
                         <div style={{ display: 'flex', flex: 1, gap: '8px', alignItems: 'center' }}>
                           <div 
@@ -548,7 +562,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                               setEditingField(`pr-${idx}`);
                             }}
                             style={ pr 
-                              ? { fontSize: '0.75rem', color: 'var(--color-primary)', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '6px 14px', borderRadius: '20px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content', border: '1px solid rgba(59, 130, 246, 0.2)' }
+                              ? { fontSize: '0.75rem', color: 'var(--color-text-main)', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '6px 14px', borderRadius: '20px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content', border: '1px solid rgba(59, 130, 246, 0.2)' }
                               : { fontSize: '0.75rem', color: 'var(--color-text-muted)', backgroundColor: 'transparent', padding: '6px 14px', borderRadius: '20px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content', border: '1px dashed #cbd5e1' }
                             }
                             title={pr}>
@@ -589,7 +603,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
 
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: '800', textTransform: 'uppercase' }}>Reproduction Repository (CURLs)</div>
-                 <button onClick={addCurl} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '800', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>
+                 <button onClick={addCurl} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '800', background: '#0f172a', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>
                     <Plus size={12} /> Add CURL
                  </button>
                </div>
@@ -598,12 +612,12 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'var(--color-bg-surface)', padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--color-border)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', width: 'fit-content' }}>
                        <div style={{ minWidth: 0 }}>
                           {editingField === `curl-${idx}` ? (
-                            <textarea autoFocus style={{ width: '200px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--color-primary)', outline: 'none', fontSize: '0.75rem', fontFamily: 'monospace', height: '60px', wordBreak: 'break-all' }} value={curl} onChange={(e) => updateCurlValue(idx, e.target.value)} onBlur={() => setEditingField(null)} />
+                            <textarea autoFocus style={{ width: '200px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--color-text-main)', outline: 'none', fontSize: '0.75rem', fontFamily: 'monospace', height: '60px', wordBreak: 'break-all' }} value={curl} onChange={(e) => updateCurlValue(idx, e.target.value)} onBlur={() => setEditingField(null)} />
                           ) : (
                             <div 
                               onDoubleClick={() => setEditingField(`curl-${idx}`)}
                               title={curl}
-                              style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--color-primary)', fontWeight: '800', cursor: 'text', lineHeight: '1.5' }}>
+                              style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--color-text-main)', fontWeight: '800', cursor: 'text', lineHeight: '1.5' }}>
                                CURL {idx + 1}
                             </div>
                           )}
@@ -628,7 +642,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
              {/* DISCUSSION & REVIEW SECTION */}
              <div style={{ marginTop: '48px', borderTop: '2px solid #f1f5f9', paddingTop: '32px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
-                   <MessageSquare size={18} color="var(--color-primary)" />
+                   <MessageSquare size={18} color="var(--color-text-main)" />
                    <h3 style={{ fontSize: '0.9rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-main)' }}>Discussion & Review</h3>
                 </div>
 
@@ -714,7 +728,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                       <button 
                          onClick={handleAddComment}
                          disabled={!newComment.trim()}
-                         style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: newComment.trim() ? '#2563eb' : 'color-mix(in srgb, var(--color-text-main) 15%, var(--color-bg-surface))', color: 'white', fontWeight: '700', fontSize: '0.8rem', border: 'none', cursor: newComment.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}>
+                         style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: newComment.trim() ? '#0f172a' : 'color-mix(in srgb, var(--color-text-main) 15%, var(--color-bg-surface))', color: 'white', fontWeight: '700', fontSize: '0.8rem', border: 'none', cursor: newComment.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}>
                          Post Review
                       </button>
                    </div>
@@ -804,7 +818,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                       onClose={() => setEditingField(null)}
                     />
                   ) : (
-                    <span onDoubleClick={() => startEdit('module', bug.module)} style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--color-primary)', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    <span onDoubleClick={() => startEdit('module', bug.module)} style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--color-text-main)', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                       {getFullModulePath(
                         tempValues.project !== undefined ? tempValues.project : bug.project,
                         tempValues.module !== undefined ? tempValues.module : bug.module
@@ -833,7 +847,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                 visited.delete(bug.id);
                 const cluster = Array.from(visited).map(id => allBugs.find(b => b.id === id)).filter(Boolean);
                 if (cluster.length === 0) return <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No cluster linked.</div>;
-                return ( <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}> {cluster.map(related => ( <div key={related.id} onClick={() => attemptNavigate(related)} style={{ fontSize: '0.8rem', color: 'var(--color-text-main)', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '6px', backgroundColor: 'var(--color-bg-body)', border: '1px solid var(--color-border)' }}><Link2 size={12} color="var(--color-primary)" /> <span style={{ fontFamily: 'monospace', opacity: 0.7 }}>{getShortId(related.id)}:</span> {related.title}</div> ))} </div> );
+                return ( <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}> {cluster.map(related => ( <div key={related.id} onClick={() => attemptNavigate(related)} style={{ fontSize: '0.8rem', color: 'var(--color-text-main)', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '6px', backgroundColor: 'var(--color-bg-body)', border: '1px solid var(--color-border)' }}><Link2 size={12} color="var(--color-text-main)" /> <span style={{ fontFamily: 'monospace', opacity: 0.7 }}>{getShortId(related.id)}:</span> {related.title}</div> ))} </div> );
               })()}
             </div>
 
@@ -841,7 +855,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
 
             <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '20px', marginTop: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                 <History size={16} color="var(--color-primary)" />
+                 <History size={16} color="var(--color-text-main)" />
                  <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity Record</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -854,13 +868,13 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                   if (history.length === 0) return <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-text-light)', fontSize: '0.75rem', backgroundColor: 'var(--color-bg-body)', borderRadius: '8px' }}>No records found.</div>;
                   return history.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)).map((item, idx) => (
                     <div key={idx} style={{ position: 'relative', paddingBottom: '16px', paddingLeft: '20px', borderLeft: '1px solid var(--color-border)' }}>
-                       <div style={{ position: 'absolute', left: '-5px', top: '0', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-bg-surface)', border: '1.5px solid var(--color-primary)' }}></div>
+                       <div style={{ position: 'absolute', left: '-5px', top: '0', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-bg-surface)', border: '1.5px solid var(--color-text-main)' }}></div>
                        <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-text-main)' }}>{item.action || 'Updated'}</div>
                        {item.type === 'curl' && (
                          <div style={{ marginTop: '4px' }}>
                            <button 
                              onClick={() => setViewingCurl({ index: idx, value: item.details })}
-                             style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: '600' }}>
+                             style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px', color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: '600' }}>
                              <Eye size={12} /> View CURL Context
                            </button>
                          </div>
@@ -876,7 +890,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                                </span>
                                {fromVal !== '—' && (
                                   <button onClick={() => restoreLogValue(item, 'from')} className="icon-action-btn" style={{ padding: '2px', backgroundColor: 'var(--color-bg-body)' }} title="Restore this old value">
-                                     <RotateCcw size={10} color="var(--color-primary)" />
+                                     <RotateCcw size={10} color="var(--color-text-main)" />
                                   </button>
                                )}
                             </div>
@@ -887,7 +901,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                                </span>
                                {toVal !== '—' && (
                                   <button onClick={() => restoreLogValue(item, 'to')} className="icon-action-btn" style={{ padding: '2px', backgroundColor: 'var(--color-bg-body)' }} title="Restore this new value">
-                                     <RotateCcw size={10} color="var(--color-primary)" />
+                                     <RotateCcw size={10} color="var(--color-text-main)" />
                                   </button>
                                )}
                             </div>
@@ -911,7 +925,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
             <h3 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '12px' }}>Unsaved Modifications</h3>
             <p style={{ color: 'var(--color-text-muted)', marginBottom: '32px', lineHeight: '1.6' }}>You have pending edits to <b>{getShortId(bug.id)}</b>. How would you like to proceed?</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button onClick={() => handleSaveAll(true)} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: '#2563eb', color: 'white', fontWeight: '700', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Save size={18} /> Save & {pendingNavigation ? 'Go to Linked' : 'Close'}</button>
+              <button onClick={() => handleSaveAll(true)} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: '#0f172a', color: 'white', fontWeight: '700', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Save size={18} /> Save & {pendingNavigation ? 'Go to Linked' : 'Close'}</button>
               <button onClick={() => setShowConfirmModal(false)} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', fontWeight: '700', border: 'none', cursor: 'pointer' }}>Keep Editing</button>
               <button onClick={handleDiscard} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: 'var(--color-bg-surface)', color: '#ef4444', fontWeight: '600', border: '1px solid #ef4444', cursor: 'pointer' }}>Discard & {pendingNavigation ? 'Continue' : 'Close'}</button>
             </div>
@@ -919,105 +933,81 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
         </div>
       )}
 
-      {/* ENHANCED CURL INSPECTION OVERLAY (PRO-SIZE - MATERIAL LIGHT ADAPTATION) */}
+      {/* CURL / REPRODUCTION CONTEXT MODAL */}
       {viewingCurl && (
-        <div className="modal-overlay" style={{ zIndex: 13000, backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }} onClick={() => setViewingCurl(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ 
-            width: '90vw', 
-            maxWidth: 'min(1000px, 95vw)', 
-            height: '80vh', 
-            padding: '40px', 
-            borderRadius: '28px', 
-            display: 'flex', 
+        <div className="modal-overlay" style={{ zIndex: 13000 }} onClick={() => setViewingCurl(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(720px, 92vw)',
+            maxHeight: '80vh',
+            padding: '24px',
+            borderRadius: '14px',
+            display: 'flex',
             flexDirection: 'column',
             backgroundColor: 'var(--color-bg-surface)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            border: '1px solid var(--color-border)',
-            animation: 'modalSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+            border: '1px solid var(--color-border)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-              <div>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-text-main)', letterSpacing: '-0.02em' }}>Technical Artifact Inspection</h3>
-                <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '6px', fontWeight: '500' }}>Double-click the code surface to copy this record to your clipboard. Use this for local reproduction.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px', gap: 16 }}>
+              <div style={{ minWidth: 0 }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-main)', margin: 0 }}>
+                  Reproduction context
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0, marginTop: 4 }}>
+                  Copy this to reproduce the bug locally.
+                </p>
               </div>
-              <button 
-                onClick={() => setViewingCurl(null)} 
-                className="icon-action-btn" 
-                style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-muted)', transition: 'all 0.2s' }}
-              >
-                <X size={24} />
+              <button
+                onClick={() => setViewingCurl(null)}
+                style={{
+                  border: 'none', background: 'transparent',
+                  color: 'var(--color-text-muted)',
+                  cursor: 'pointer', padding: 4, flexShrink: 0
+                }}
+                aria-label="Close">
+                <X size={18} />
               </button>
             </div>
-            
-            <div 
-              onDoubleClick={() => { navigator.clipboard.writeText(viewingCurl.value); showToast("Success: Artifact Copied!"); }}
-              title="Double-click to copy"
-              style={{ 
-                flex: 1, 
-                backgroundColor: 'var(--color-bg-body)', 
-                color: 'var(--color-text-main)', 
-                padding: '36px', 
-                borderRadius: '20px', 
-                fontSize: '0.95rem', 
-                fontFamily: 'var(--font-mono)', 
-                whiteSpace: 'pre-wrap', 
-                wordBreak: 'break-all', 
-                overflowY: 'auto', 
-                border: '1px solid var(--color-border)', 
-                cursor: 'pointer', 
-                lineHeight: '1.7', 
-                boxShadow: 'inset 0 2px 4px 0 rgba(0,0,0,0.03)',
-                position: 'relative'
-              }}>
-              <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: 'var(--color-bg-surface)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '800', color: 'var(--color-text-light)', border: '1px solid var(--color-border)', textTransform: 'uppercase' }}>
-                RAW SOURCE
-              </div>
+
+            <div style={{
+              flex: 1, minHeight: 180,
+              backgroundColor: 'var(--color-bg-body)',
+              color: 'var(--color-text-main)',
+              padding: '14px 16px',
+              borderRadius: 10,
+              fontSize: '0.82rem',
+              fontFamily: 'var(--font-mono)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              overflowY: 'auto',
+              border: '1px solid var(--color-border)',
+              lineHeight: 1.6
+            }}>
               {viewingCurl.value}
             </div>
 
-            <div style={{ marginTop: '28px', display: 'flex', gap: '16px' }}>
-              <button 
-                onClick={() => { navigator.clipboard.writeText(viewingCurl.value); showToast("CURL Copied!"); }}
-                style={{ 
-                  flex: 3, 
-                  padding: '18px', 
-                  borderRadius: '16px', 
-                  backgroundColor: 'var(--color-primary)', 
-                  color: 'white', 
-                  fontWeight: '750', 
-                  border: 'none', 
-                  cursor: 'pointer', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '12px', 
-                  fontSize: '1rem',
-                  boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)',
-                  transition: 'transform 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-              >
-                <Copy size={20} /> Copy Reproduction Context
-              </button>
-              <button 
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
                 onClick={() => setViewingCurl(null)}
-                style={{ 
-                  flex: 1, 
-                  padding: '18px', 
-                  borderRadius: '16px', 
-                  backgroundColor: 'var(--color-bg-body)', 
-                  color: 'var(--color-text-muted)', 
-                  fontWeight: '700', 
-                  border: '1px solid var(--color-border)', 
-                  cursor: 'pointer', 
-                  fontSize: '1rem',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-              >
-                Dismiss
+                style={{
+                  padding: '8px 14px', borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-text-muted)',
+                  fontSize: '0.82rem', fontWeight: 500,
+                  cursor: 'pointer'
+                }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => { navigator.clipboard.writeText(viewingCurl.value); showToast("Copied"); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '8px 14px', borderRadius: 8,
+                  border: 'none', backgroundColor: '#0f172a',
+                  color: 'white',
+                  fontSize: '0.82rem', fontWeight: 500,
+                  cursor: 'pointer'
+                }}>
+                <Copy size={14} /> Copy
               </button>
             </div>
           </div>

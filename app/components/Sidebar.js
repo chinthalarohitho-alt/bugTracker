@@ -1,114 +1,84 @@
 "use client";
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Bug, LayoutDashboard, FolderKanban, BarChart3, Settings, LogOut, Moon, Sun, Users } from 'lucide-react';
-import { useAuth, capitalizeName } from './AuthProvider';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Home, Bug, Folder, BarChart3, Users, Settings, User, Palette, Building2, Lightbulb, ClipboardList, FlaskConical
+} from "lucide-react";
+import { useAuth } from "./AuthProvider";
+
+const PRIMARY_LINKS = [
+  { href: "/",          label: "Home",      icon: Home },
+  { href: "/bugs",      label: "Bugs",      icon: Bug },
+  { href: "/projects",  label: "Projects",  icon: Folder },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/team",      label: "Team",      icon: Users },
+];
+
+const DESIGNER_LINK = { href: "/design-hub", label: "Design Hub", icon: Palette };
+const SALES_LINK = { href: "/sales-hub", label: "Sales Hub", icon: Building2 };
+const FOUNDER_LINK = { href: "/founder-hub", label: "Founder Hub", icon: Lightbulb };
+const PM_LINK = { href: "/pm-hub", label: "PM Hub", icon: ClipboardList };
+const QA_LINK = { href: "/qa-hub", label: "QA Hub", icon: FlaskConical };
+
+const SECONDARY_LINKS = [
+  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/profile",  label: "Profile",  icon: User },
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { currentReporter, getAvatar, getInitials, handleSwitchUser, userRole } = useAuth();
-  const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('bugTracker_theme');
-    if (saved === 'dark') {
-      setDarkMode(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
-    localStorage.setItem('bugTracker_theme', next ? 'dark' : 'light');
-  };
+  const { currentReporter, userRole } = useAuth();
+  const isActive = (href) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   if (!currentReporter) return null;
 
+  const roleLinkMap = {
+    'Designer': DESIGNER_LINK,
+    'Sales Manager': SALES_LINK,
+    'Founder': FOUNDER_LINK,
+    'Project Manager': PM_LINK,
+    'QA Engineer': QA_LINK,
+  };
+  const roleLink = roleLinkMap[userRole];
+  const links = roleLink
+    ? [PRIMARY_LINKS[0], roleLink, ...PRIMARY_LINKS.slice(1)]
+    : PRIMARY_LINKS;
+
   return (
-    <aside className="layout-sidebar">
-      <div className="sidebar-header">
-        <img src="/tapzaLogo.png" alt="Tapza" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-        <div className="sidebar-brand" style={{ marginLeft: '1px' }}>
-          Tapza Bug portal
-        </div>
-      </div>
+    <aside className="sidenav">
+      <Link href="/" className="sidenav-brand">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/tapzaLogo.png" alt="Tapza" />
+        <span className="sidenav-brand-text">
+          <span className="sidenav-brand-name">TAPZA</span>
+          <span className="sidenav-brand-sub">Internal Portal</span>
+        </span>
+      </Link>
 
-      <nav className="sidebar-nav">
-        <Link href="/" className={`sidebar-link ${pathname === '/' ? 'active' : ''}`}>
-          <LayoutDashboard size={18} /> Dashboard
-        </Link>
-        <Link href="/bugs" className={`sidebar-link ${pathname === '/bugs' ? 'active' : ''}`}>
-          <Bug size={18} /> Bugs
-        </Link>
-        <Link href="/projects" className={`sidebar-link ${pathname === '/projects' ? 'active' : ''}`}>
-          <FolderKanban size={18} /> Projects
-        </Link>
-        <Link href="/analytics" className={`sidebar-link ${pathname === '/analytics' ? 'active' : ''}`}>
-          <BarChart3 size={18} /> Analytics
-        </Link>
-        <Link href="/settings" className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`}>
-          <Settings size={18} /> Settings
-        </Link>
-        <Link href="/team" className={`sidebar-link ${pathname === '/team' ? 'active' : ''}`}>
-          <Users size={18} /> Team Members
-        </Link>
-      </nav>
-
-      <div className="sidebar-footer" style={{ padding: '12px' }}>
-        {/* Dark Mode Toggle */}
-        <button
-          onClick={toggleDarkMode}
-          className="sidebar-link"
-          style={{
-            width: '100%', border: '1px solid var(--color-border-light)',
-            justifyContent: 'center', gap: '8px', fontSize: '0.8rem',
-            marginBottom: '10px', padding: '8px'
-          }}
+      <div className="sidenav-section">Workspace</div>
+      {links.map(({ href, label, icon: Icon }) => (
+        <Link
+          key={href}
+          href={href}
+          className={`sidenav-link ${isActive(href) ? "active" : ""}`}
         >
-          {darkMode ? <Sun size={14} /> : <Moon size={14} />}
-          {darkMode ? 'Light Mode' : 'Dark Mode'}
-        </button>
+          <Icon size={17} strokeWidth={1.8} />
+          <span>{label}</span>
+        </Link>
+      ))}
 
-        <Link href="/profile" className="user-profile" style={{ border: '1px solid var(--color-border-light)', padding: '10px 8px', textDecoration: 'none', cursor: 'pointer' }}>
-          <div
-            className="avatar"
-            style={{
-              width: '38px', height: '38px',
-              backgroundColor: '#2563eb', color: 'white',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.8rem', fontWeight: '800',
-              border: '2px solid white',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-              overflow: 'hidden', position: 'relative'
-            }}
+      <div className="sidenav-footer">
+        {SECONDARY_LINKS.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={`sidenav-link ${isActive(href) ? "active" : ""}`}
           >
-            {getAvatar(currentReporter) && (
-              <img
-                src={getAvatar(currentReporter)}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            )}
-            {getInitials(currentReporter)}
-          </div>
-          <div style={{ flex: 1, marginLeft: '8px', minWidth: 0 }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {capitalizeName(currentReporter)}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: '500' }}>{userRole || 'Team Member'}</div>
-          </div>
-        </Link>
-
-        <button
-          onClick={handleSwitchUser}
-          className="sidebar-link"
-          style={{ marginTop: '10px', width: '100%', border: '1px solid color-mix(in srgb, #ef4444 20%, var(--color-bg-surface))', justifyContent: 'center', gap: '6px', fontSize: '0.8rem', color: '#ef4444' }}
-        >
-          <LogOut size={14} /> Logout
-        </button>
+            <Icon size={17} strokeWidth={1.8} />
+            <span>{label}</span>
+          </Link>
+        ))}
       </div>
     </aside>
   );

@@ -4,7 +4,12 @@ import { Search, Bell, MailOpen, ExternalLink, BarChart3, Settings, Folder, Bug,
 import { useAuth, capitalizeName } from './AuthProvider';
 import { useRouter, usePathname } from 'next/navigation';
 
-export default function GlobalHeader({
+// Search + notifications live in TopNav now. Kept as a no-op to avoid touching
+// every page that still imports this — safe to remove later.
+export default function GlobalHeader() { return null; }
+
+// eslint-disable-next-line no-unused-vars
+function _LegacyGlobalHeader({
   placeholder = "Search bugs, projects, team..."
 }) {
   const { currentReporter, notifications, unreadCount, fetchNotifications, getInitials, getAvatar, globalSearchQuery, setGlobalSearchQuery, globalBugs, globalSettings } = useAuth();
