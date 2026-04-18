@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { requireAuth } from '@/bugTracker/lib/requireAuth';
+import { requireAuth } from '@/lib/requireAuth';
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif'];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB

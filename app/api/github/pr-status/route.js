@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/bugTracker/lib/requireAuth';
+import { requireAuth } from '@/lib/requireAuth';
 
 // Parse GitHub PR URL → { owner, repo, number }
 function parsePrUrl(url) {
