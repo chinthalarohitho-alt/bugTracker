@@ -81,6 +81,41 @@ export async function GET() {
           activity_log = EXCLUDED.activity_log,
           comments = EXCLUDED.comments
       `;
+
+      try {
+        if (Array.isArray(bug.activityLog)) {
+          for (const a of bug.activityLog) {
+            if (!a || typeof a !== 'object') continue;
+            await sql`
+              INSERT INTO bug_activity_log (bug_id, action, field_key, from_value, to_value, entry_type, details, at, raw)
+              VALUES (
+                ${bid}, ${a.action || null}, ${a.fieldKey || null},
+                ${typeof a.from === 'string' ? a.from : (a.from == null ? null : JSON.stringify(a.from))},
+                ${typeof a.to === 'string' ? a.to : (a.to == null ? null : JSON.stringify(a.to))},
+                ${a.type || null},
+                ${a.details ? JSON.stringify(a.details) : null},
+                ${a.date || createdAt}, ${JSON.stringify(a)}
+              )
+            `;
+          }
+        }
+        if (Array.isArray(bug.comments)) {
+          for (const c of bug.comments) {
+            if (!c || typeof c !== 'object' || !c.id) continue;
+            await sql`
+              INSERT INTO bug_comments (id, bug_id, author, body, created_at, raw)
+              VALUES (
+                ${c.id}, ${bid}, ${c.author || null},
+                ${c.body || c.text || c.content || ''},
+                ${c.createdAt || c.date || createdAt},
+                ${JSON.stringify(c)}
+              )
+              ON CONFLICT (id) DO NOTHING
+            `;
+          }
+        }
+      } catch (e) { console.warn('db-import child-table dual-write skipped for ' + bid + ':', e.message); }
+
       report.bugs++;
     }
 

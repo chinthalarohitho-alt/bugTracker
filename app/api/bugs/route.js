@@ -125,26 +125,33 @@ export async function POST(request) {
       nextIdNum = Math.max(...numbers) + 1;
     }
     const bugId = 'BUG-' + nextIdNum;
-    const initialLog = [{ date: timestamp, action: 'Bug reported by ' + (newBug.reporter || 'System') }];
+    const initialAction = 'Bug reported by ' + (newBug.reporter || 'System');
+    const initialLog = [{ date: timestamp, action: initialAction }];
     const result = await sql`
       INSERT INTO bugs (
-        id, title, description, status, priority, severity, 
-        reporter, assignee, project, module, start_date, end_date, 
-        steps_to_reproduce, expected_result, actual_result, 
+        id, title, description, status, priority, severity,
+        reporter, assignee, project, module, start_date, end_date,
+        steps_to_reproduce, expected_result, actual_result,
         curl, github_pr, related_bugs,
         created_at, updated_at, activity_log, comments
       ) VALUES (
-        ${bugId}, ${newBug.title}, ${newBug.description}, ${newBug.status || 'Open'}, 
-        ${newBug.priority || 'Medium'}, ${newBug.severity || 'Medium'}, 
-        ${newBug.reporter || 'System'}, ${newBug.assignee || 'Unassigned'}, 
-        ${newBug.project || 'General'}, ${newBug.module || 'General'}, 
-        ${newBug.startDate || ''}, ${newBug.endDate || ''}, 
+        ${bugId}, ${newBug.title}, ${newBug.description}, ${newBug.status || 'Open'},
+        ${newBug.priority || 'Medium'}, ${newBug.severity || 'Medium'},
+        ${newBug.reporter || 'System'}, ${newBug.assignee || 'Unassigned'},
+        ${newBug.project || 'General'}, ${newBug.module || 'General'},
+        ${newBug.startDate || ''}, ${newBug.endDate || ''},
         ${newBug.stepsToReproduce || ''}, ${newBug.expectedResult || ''}, ${newBug.actualResult || ''},
         ${JSON.stringify(newBug.curl || [])}, ${JSON.stringify(newBug.githubPr || [])}, ${JSON.stringify(newBug.relatedBugs || [])},
-        ${timestamp}, ${timestamp}, 
+        ${timestamp}, ${timestamp},
         ${JSON.stringify(initialLog)}, ${JSON.stringify([])}
       ) RETURNING *
     `;
+    try {
+      await sql`
+        INSERT INTO bug_activity_log (bug_id, action, at, raw)
+        VALUES (${bugId}, ${initialAction}, ${timestamp}, ${JSON.stringify(initialLog[0])})
+      `;
+    } catch (e) { console.warn('bug_activity_log dual-write skipped:', e.message); }
     return NextResponse.json({ success: true, bug: transformBugRow(result[0]) });
   } catch (error) {
     console.error('Bugs API POST Error:', error);
@@ -164,7 +171,8 @@ export async function PUT(request) {
     if (currentRows.length === 0) return NextResponse.json({ error: 'Bug not found' }, { status: 404 });
     const oldBug = transformBugRow(currentRows[0]);
     const mergedBug = { ...oldBug, ...updatedBugPayload };
-    const finalLogs = [...(oldBug.activityLog || []), ...getChangeLogs(oldBug, updatedBugPayload)];
+    const newLogs = getChangeLogs(oldBug, updatedBugPayload);
+    const finalLogs = [...(oldBug.activityLog || []), ...newLogs];
     const result = await sql`
       UPDATE bugs SET
         title = ${mergedBug.title},
@@ -189,6 +197,38 @@ export async function PUT(request) {
       WHERE id = ${mergedBug.id}
       RETURNING *
     `;
+    try {
+      for (const log of newLogs) {
+        const fromStr = log.from == null || typeof log.from === 'string' ? log.from ?? null : JSON.stringify(log.from);
+        const toStr = log.to == null || typeof log.to === 'string' ? log.to ?? null : JSON.stringify(log.to);
+        await sql`
+          INSERT INTO bug_activity_log (bug_id, action, field_key, from_value, to_value, entry_type, details, at, raw)
+          VALUES (
+            ${mergedBug.id}, ${log.action || null}, ${log.fieldKey || null},
+            ${fromStr}, ${toStr}, ${log.type || null},
+            ${log.details ? JSON.stringify(log.details) : null},
+            ${log.date || timestamp}, ${JSON.stringify(log)}
+          )
+        `;
+      }
+      if (Array.isArray(mergedBug.comments)) {
+        for (const c of mergedBug.comments) {
+          if (!c || typeof c !== 'object') continue;
+          const cid = c.id || null;
+          if (!cid) continue;
+          await sql`
+            INSERT INTO bug_comments (id, bug_id, author, body, created_at, raw)
+            VALUES (
+              ${cid}, ${mergedBug.id}, ${c.author || null},
+              ${c.body || c.text || c.content || ''},
+              ${c.createdAt || c.date || timestamp},
+              ${JSON.stringify(c)}
+            )
+            ON CONFLICT (id) DO NOTHING
+          `;
+        }
+      }
+    } catch (e) { console.warn('bug_comments/bug_activity_log dual-write skipped:', e.message); }
     return NextResponse.json({ success: true, bug: transformBugRow(result[0]) });
   } catch (error) {
     console.error('Bugs API PUT Error:', error);

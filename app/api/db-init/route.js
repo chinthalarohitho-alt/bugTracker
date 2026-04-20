@@ -105,6 +105,77 @@ export async function GET() {
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_sales_customers_owner ON sales_customers(owner)`;
 
+    // 3d. Child tables for bug comments and activity log (split from JSONB to shrink bug row size)
+    await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS bug_comments (
+        id TEXT PRIMARY KEY,
+        bug_id TEXT NOT NULL REFERENCES bugs(id) ON DELETE CASCADE,
+        author TEXT,
+        body TEXT,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        raw JSONB DEFAULT '{}'::jsonb
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_bug_comments_bug_id ON bug_comments(bug_id, created_at)`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS bug_activity_log (
+        id BIGSERIAL PRIMARY KEY,
+        bug_id TEXT NOT NULL REFERENCES bugs(id) ON DELETE CASCADE,
+        action TEXT,
+        field_key TEXT,
+        from_value TEXT,
+        to_value TEXT,
+        entry_type TEXT,
+        details JSONB,
+        at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        raw JSONB DEFAULT '{}'::jsonb
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_bug_activity_bug_id ON bug_activity_log(bug_id, at DESC)`;
+
+    // 3e. One-shot backfill from JSONB columns — guarded by row count so re-running is safe
+    const commentCount = await sql`SELECT COUNT(*)::int AS n FROM bug_comments`;
+    if (commentCount[0].n === 0) {
+      await sql`
+        INSERT INTO bug_comments (id, bug_id, author, body, created_at, raw)
+        SELECT
+          COALESCE(NULLIF(c->>'id', ''), gen_random_uuid()::text),
+          b.id,
+          c->>'author',
+          COALESCE(c->>'body', c->>'text', c->>'content', ''),
+          COALESCE(
+            NULLIF(c->>'createdAt','')::timestamptz,
+            NULLIF(c->>'date','')::timestamptz,
+            CURRENT_TIMESTAMP
+          ),
+          c
+        FROM bugs b, jsonb_array_elements(b.comments) c
+        WHERE jsonb_typeof(b.comments) = 'array'
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
+
+    const activityCount = await sql`SELECT COUNT(*)::int AS n FROM bug_activity_log`;
+    if (activityCount[0].n === 0) {
+      await sql`
+        INSERT INTO bug_activity_log (bug_id, action, field_key, from_value, to_value, entry_type, details, at, raw)
+        SELECT
+          b.id,
+          a->>'action',
+          a->>'fieldKey',
+          a->>'from',
+          a->>'to',
+          a->>'type',
+          CASE WHEN a ? 'details' THEN a->'details' ELSE NULL END,
+          COALESCE(NULLIF(a->>'date','')::timestamptz, CURRENT_TIMESTAMP),
+          a
+        FROM bugs b, jsonb_array_elements(b.activity_log) a
+        WHERE jsonb_typeof(b.activity_log) = 'array'
+      `;
+    }
+
     // 4. Migration: Ensure missing columns exist in existing tables
     const migrations = [
       `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS module TEXT DEFAULT 'General'`,
