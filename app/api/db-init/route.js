@@ -13,7 +13,8 @@ export async function GET() {
   const sql = getSQL();
   if (!sql) return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 503 });
   try {
-    // 1. Create BUGS table with full production schema
+    // 1. Create BUGS table. Comments and activity_log now live in child tables
+    //    (bug_comments, bug_activity_log) — do NOT re-add those columns.
     await sql`
       CREATE TABLE IF NOT EXISTS bugs (
         id TEXT PRIMARY KEY,
@@ -32,12 +33,11 @@ export async function GET() {
         curl JSONB DEFAULT '[]'::jsonb,
         github_pr JSONB DEFAULT '[]'::jsonb,
         related_bugs JSONB DEFAULT '[]'::jsonb,
+        attachments JSONB DEFAULT '[]'::jsonb,
         start_date TEXT,
         end_date TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        activity_log JSONB DEFAULT '[]'::jsonb,
-        comments JSONB DEFAULT '[]'::jsonb,
         metadata JSONB DEFAULT '{}'::jsonb
       );
     `;
@@ -135,9 +135,19 @@ export async function GET() {
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_bug_activity_bug_id ON bug_activity_log(bug_id, at DESC)`;
 
-    // 3e. One-shot backfill from JSONB columns — guarded by row count so re-running is safe
+    // 3e. One-shot backfill from legacy JSONB columns on `bugs`, guarded by:
+    //     (a) target child table empty, and (b) source JSONB column still exists.
+    const hasColumn = async (table, col) => {
+      const r = await sql`
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = ${table} AND column_name = ${col}
+        LIMIT 1
+      `;
+      return r.length > 0;
+    };
+
     const commentCount = await sql`SELECT COUNT(*)::int AS n FROM bug_comments`;
-    if (commentCount[0].n === 0) {
+    if (commentCount[0].n === 0 && await hasColumn('bugs', 'comments')) {
       await sql`
         INSERT INTO bug_comments (id, bug_id, author, body, created_at, raw)
         SELECT
@@ -158,7 +168,7 @@ export async function GET() {
     }
 
     const activityCount = await sql`SELECT COUNT(*)::int AS n FROM bug_activity_log`;
-    if (activityCount[0].n === 0) {
+    if (activityCount[0].n === 0 && await hasColumn('bugs', 'activity_log')) {
       await sql`
         INSERT INTO bug_activity_log (bug_id, action, field_key, from_value, to_value, entry_type, details, at, raw)
         SELECT
@@ -176,6 +186,11 @@ export async function GET() {
       `;
     }
 
+    // 3f. Drop legacy JSONB columns on `bugs` — idempotent; no-op after first run.
+    //     Runs AFTER backfill so no data is lost. Reads/writes now use child tables.
+    try { await sql`ALTER TABLE bugs DROP COLUMN IF EXISTS comments`; } catch (e) { console.warn('drop comments column failed:', e.message); }
+    try { await sql`ALTER TABLE bugs DROP COLUMN IF EXISTS activity_log`; } catch (e) { console.warn('drop activity_log column failed:', e.message); }
+
     // 4. Migration: Ensure missing columns exist in existing tables
     const migrations = [
       `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS module TEXT DEFAULT 'General'`,
@@ -186,12 +201,29 @@ export async function GET() {
       `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS actual_result TEXT`,
       `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS curl JSONB DEFAULT '[]'::jsonb`,
       `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS github_pr JSONB DEFAULT '[]'::jsonb`,
-      `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS related_bugs JSONB DEFAULT '[]'::jsonb`
+      `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS related_bugs JSONB DEFAULT '[]'::jsonb`,
+      `ALTER TABLE bugs ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb`
     ];
 
     for (const query of migrations) {
       try { await sql([query]); } catch (e) { console.warn('Migration skipped:', query, e.message); }
     }
+
+    // 4b. Explicit migrations via tagged templates — guaranteed to run even if the
+    // array-call pattern above is rejected by the neon driver version.
+    try {
+      await sql`ALTER TABLE bugs ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb`;
+    } catch (e) {
+      console.warn('attachments migration failed:', e.message);
+    }
+
+    // 4c. Verification: report the columns that actually exist on the bugs table
+    const columns = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'bugs'
+      ORDER BY column_name
+    `;
+    const columnNames = columns.map(c => c.column_name);
 
     // 5. Initialize Settings if empty
     const settingsCheck = await sql`SELECT * FROM settings WHERE id = 1`;
@@ -211,7 +243,9 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: "Database tables initialized successfully. Multi-field schema is ready."
+      message: "Database tables initialized successfully. Multi-field schema is ready.",
+      bugsColumns: columnNames,
+      hasAttachments: columnNames.includes('attachments')
     });
   } catch (error) {
     console.error('Database Init Error:', error);

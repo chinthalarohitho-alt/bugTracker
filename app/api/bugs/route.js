@@ -8,6 +8,7 @@ const getSQL = () => {
   return neon(url);
 };
 
+
 function transformBugRow(row) {
   if (!row) return null;
   const parseArray = (val) => {
@@ -40,6 +41,7 @@ function transformBugRow(row) {
     curl: parseArray(row.curl),
     githubPr: parseArray(row.github_pr),
     relatedBugs: parseArray(row.related_bugs),
+    attachments: parseArray((row.metadata || {}).attachments),
     metadata: row.metadata || {}
   };
 }
@@ -64,7 +66,8 @@ function getChangeLogs(oldBug, newBug) {
     { key: 'actualResult', label: 'Actual Result' },
     { key: 'curl', label: 'Technical Context', isTechnical: true, type: 'curl' },
     { key: 'githubPr', label: 'GitHub PR', isTechnical: true },
-    { key: 'relatedBugs', label: 'Related Bugs', isTechnical: true }
+    { key: 'relatedBugs', label: 'Related Bugs', isTechnical: true },
+    { key: 'attachments', label: 'Attachments', isTechnical: true }
   ];
   fieldsToTrack.forEach(field => {
     if (newBug[field.key] === undefined) return;
@@ -99,7 +102,25 @@ export async function GET() {
   const sql = getSQL();
   if (!sql) return NextResponse.json({ success: true, bugs: [] });
   try {
-    const rows = await sql`SELECT * FROM bugs ORDER BY created_at DESC`;
+    const rows = await sql`
+      SELECT
+        b.id, b.title, b.description, b.status, b.priority, b.severity,
+        b.reporter, b.assignee, b.project, b.module,
+        b.steps_to_reproduce, b.expected_result, b.actual_result,
+        b.curl, b.github_pr, b.related_bugs,
+        b.start_date, b.end_date,
+        b.created_at, b.updated_at, b.metadata,
+        COALESCE(
+          (SELECT jsonb_agg(c.raw ORDER BY c.created_at) FROM bug_comments c WHERE c.bug_id = b.id),
+          '[]'::jsonb
+        ) AS comments,
+        COALESCE(
+          (SELECT jsonb_agg(a.raw ORDER BY a.at) FROM bug_activity_log a WHERE a.bug_id = b.id),
+          '[]'::jsonb
+        ) AS activity_log
+      FROM bugs b
+      ORDER BY b.created_at DESC
+    `;
     return NextResponse.json({ success: true, bugs: rows.map(transformBugRow) });
   } catch (error) {
     console.error('Bugs API GET Error:', error);
@@ -126,14 +147,14 @@ export async function POST(request) {
     }
     const bugId = 'BUG-' + nextIdNum;
     const initialAction = 'Bug reported by ' + (newBug.reporter || 'System');
-    const initialLog = [{ date: timestamp, action: initialAction }];
-    const result = await sql`
+    const initialLogEntry = { date: timestamp, action: initialAction };
+    await sql`
       INSERT INTO bugs (
         id, title, description, status, priority, severity,
         reporter, assignee, project, module, start_date, end_date,
         steps_to_reproduce, expected_result, actual_result,
-        curl, github_pr, related_bugs,
-        created_at, updated_at, activity_log, comments
+        curl, github_pr, related_bugs, metadata,
+        created_at, updated_at
       ) VALUES (
         ${bugId}, ${newBug.title}, ${newBug.description}, ${newBug.status || 'Open'},
         ${newBug.priority || 'Medium'}, ${newBug.severity || 'Medium'},
@@ -141,18 +162,27 @@ export async function POST(request) {
         ${newBug.project || 'General'}, ${newBug.module || 'General'},
         ${newBug.startDate || ''}, ${newBug.endDate || ''},
         ${newBug.stepsToReproduce || ''}, ${newBug.expectedResult || ''}, ${newBug.actualResult || ''},
-        ${JSON.stringify(newBug.curl || [])}, ${JSON.stringify(newBug.githubPr || [])}, ${JSON.stringify(newBug.relatedBugs || [])},
-        ${timestamp}, ${timestamp},
-        ${JSON.stringify(initialLog)}, ${JSON.stringify([])}
-      ) RETURNING *
+        ${JSON.stringify(newBug.curl || [])}, ${JSON.stringify(newBug.githubPr || [])}, ${JSON.stringify(newBug.relatedBugs || [])}, ${JSON.stringify({ attachments: newBug.attachments || [] })},
+        ${timestamp}, ${timestamp}
+      )
     `;
-    try {
-      await sql`
-        INSERT INTO bug_activity_log (bug_id, action, at, raw)
-        VALUES (${bugId}, ${initialAction}, ${timestamp}, ${JSON.stringify(initialLog[0])})
-      `;
-    } catch (e) { console.warn('bug_activity_log dual-write skipped:', e.message); }
-    return NextResponse.json({ success: true, bug: transformBugRow(result[0]) });
+    await sql`
+      INSERT INTO bug_activity_log (bug_id, action, at, raw)
+      VALUES (${bugId}, ${initialAction}, ${timestamp}, ${JSON.stringify(initialLogEntry)})
+    `;
+    const created = await sql`
+      SELECT
+        b.id, b.title, b.description, b.status, b.priority, b.severity,
+        b.reporter, b.assignee, b.project, b.module,
+        b.steps_to_reproduce, b.expected_result, b.actual_result,
+        b.curl, b.github_pr, b.related_bugs,
+        b.start_date, b.end_date,
+        b.created_at, b.updated_at, b.metadata,
+        COALESCE((SELECT jsonb_agg(c.raw ORDER BY c.created_at) FROM bug_comments c WHERE c.bug_id = b.id), '[]'::jsonb) AS comments,
+        COALESCE((SELECT jsonb_agg(a.raw ORDER BY a.at) FROM bug_activity_log a WHERE a.bug_id = b.id), '[]'::jsonb) AS activity_log
+      FROM bugs b WHERE b.id = ${bugId}
+    `;
+    return NextResponse.json({ success: true, bug: transformBugRow(created[0]) });
   } catch (error) {
     console.error('Bugs API POST Error:', error);
     return NextResponse.json({ error: 'Failed to create bug', details: error.message }, { status: 500 });
@@ -167,13 +197,23 @@ export async function PUT(request) {
   try {
     const updatedBugPayload = await request.json();
     const timestamp = new Date().toISOString();
-    const currentRows = await sql`SELECT * FROM bugs WHERE id = ${updatedBugPayload.id}`;
+    const currentRows = await sql`
+      SELECT
+        b.id, b.title, b.description, b.status, b.priority, b.severity,
+        b.reporter, b.assignee, b.project, b.module,
+        b.steps_to_reproduce, b.expected_result, b.actual_result,
+        b.curl, b.github_pr, b.related_bugs,
+        b.start_date, b.end_date,
+        b.created_at, b.updated_at, b.metadata,
+        COALESCE((SELECT jsonb_agg(c.raw ORDER BY c.created_at) FROM bug_comments c WHERE c.bug_id = b.id), '[]'::jsonb) AS comments,
+        COALESCE((SELECT jsonb_agg(a.raw ORDER BY a.at) FROM bug_activity_log a WHERE a.bug_id = b.id), '[]'::jsonb) AS activity_log
+      FROM bugs b WHERE b.id = ${updatedBugPayload.id}
+    `;
     if (currentRows.length === 0) return NextResponse.json({ error: 'Bug not found' }, { status: 404 });
     const oldBug = transformBugRow(currentRows[0]);
     const mergedBug = { ...oldBug, ...updatedBugPayload };
     const newLogs = getChangeLogs(oldBug, updatedBugPayload);
-    const finalLogs = [...(oldBug.activityLog || []), ...newLogs];
-    const result = await sql`
+    await sql`
       UPDATE bugs SET
         title = ${mergedBug.title},
         description = ${mergedBug.description},
@@ -191,45 +231,53 @@ export async function PUT(request) {
         curl = ${JSON.stringify(mergedBug.curl || [])},
         github_pr = ${JSON.stringify(mergedBug.githubPr || [])},
         related_bugs = ${JSON.stringify(mergedBug.relatedBugs || [])},
-        updated_at = ${timestamp},
-        activity_log = ${JSON.stringify(finalLogs)},
-        comments = ${typeof mergedBug.comments === 'string' ? mergedBug.comments : JSON.stringify(mergedBug.comments || [])}
+        metadata = ${JSON.stringify({ ...(oldBug.metadata || {}), attachments: mergedBug.attachments || [] })},
+        updated_at = ${timestamp}
       WHERE id = ${mergedBug.id}
-      RETURNING *
     `;
-    try {
-      for (const log of newLogs) {
-        const fromStr = log.from == null || typeof log.from === 'string' ? log.from ?? null : JSON.stringify(log.from);
-        const toStr = log.to == null || typeof log.to === 'string' ? log.to ?? null : JSON.stringify(log.to);
+    for (const log of newLogs) {
+      const fromStr = log.from == null || typeof log.from === 'string' ? log.from ?? null : JSON.stringify(log.from);
+      const toStr = log.to == null || typeof log.to === 'string' ? log.to ?? null : JSON.stringify(log.to);
+      await sql`
+        INSERT INTO bug_activity_log (bug_id, action, field_key, from_value, to_value, entry_type, details, at, raw)
+        VALUES (
+          ${mergedBug.id}, ${log.action || null}, ${log.fieldKey || null},
+          ${fromStr}, ${toStr}, ${log.type || null},
+          ${log.details ? JSON.stringify(log.details) : null},
+          ${log.date || timestamp}, ${JSON.stringify(log)}
+        )
+      `;
+    }
+    if (Array.isArray(mergedBug.comments)) {
+      for (const c of mergedBug.comments) {
+        if (!c || typeof c !== 'object') continue;
+        const cid = c.id || null;
+        if (!cid) continue;
         await sql`
-          INSERT INTO bug_activity_log (bug_id, action, field_key, from_value, to_value, entry_type, details, at, raw)
+          INSERT INTO bug_comments (id, bug_id, author, body, created_at, raw)
           VALUES (
-            ${mergedBug.id}, ${log.action || null}, ${log.fieldKey || null},
-            ${fromStr}, ${toStr}, ${log.type || null},
-            ${log.details ? JSON.stringify(log.details) : null},
-            ${log.date || timestamp}, ${JSON.stringify(log)}
+            ${cid}, ${mergedBug.id}, ${c.author || null},
+            ${c.body || c.text || c.content || ''},
+            ${c.createdAt || c.date || timestamp},
+            ${JSON.stringify(c)}
           )
+          ON CONFLICT (id) DO NOTHING
         `;
       }
-      if (Array.isArray(mergedBug.comments)) {
-        for (const c of mergedBug.comments) {
-          if (!c || typeof c !== 'object') continue;
-          const cid = c.id || null;
-          if (!cid) continue;
-          await sql`
-            INSERT INTO bug_comments (id, bug_id, author, body, created_at, raw)
-            VALUES (
-              ${cid}, ${mergedBug.id}, ${c.author || null},
-              ${c.body || c.text || c.content || ''},
-              ${c.createdAt || c.date || timestamp},
-              ${JSON.stringify(c)}
-            )
-            ON CONFLICT (id) DO NOTHING
-          `;
-        }
-      }
-    } catch (e) { console.warn('bug_comments/bug_activity_log dual-write skipped:', e.message); }
-    return NextResponse.json({ success: true, bug: transformBugRow(result[0]) });
+    }
+    const updated = await sql`
+      SELECT
+        b.id, b.title, b.description, b.status, b.priority, b.severity,
+        b.reporter, b.assignee, b.project, b.module,
+        b.steps_to_reproduce, b.expected_result, b.actual_result,
+        b.curl, b.github_pr, b.related_bugs,
+        b.start_date, b.end_date,
+        b.created_at, b.updated_at, b.metadata,
+        COALESCE((SELECT jsonb_agg(c.raw ORDER BY c.created_at) FROM bug_comments c WHERE c.bug_id = b.id), '[]'::jsonb) AS comments,
+        COALESCE((SELECT jsonb_agg(a.raw ORDER BY a.at) FROM bug_activity_log a WHERE a.bug_id = b.id), '[]'::jsonb) AS activity_log
+      FROM bugs b WHERE b.id = ${mergedBug.id}
+    `;
+    return NextResponse.json({ success: true, bug: transformBugRow(updated[0]) });
   } catch (error) {
     console.error('Bugs API PUT Error:', error);
     return NextResponse.json({ error: 'Failed to update bug', details: error.message }, { status: 500 });
