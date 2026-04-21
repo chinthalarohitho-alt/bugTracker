@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Pencil, Check, ExternalLink, Copy, AlertCircle, Bug as BugIcon } from 'lucide-react';
+import { X, Plus, Trash2, Pencil, Check, ExternalLink, Copy, AlertCircle, Bug as BugIcon, Paperclip } from 'lucide-react';
 import CustomDropdown from './CustomDropdown';
 
 const getAssigneeName = (a) => {
@@ -30,6 +30,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
     curl: [],
     githubPr: [],
     relatedBugs: [],
+    attachments: [],
     comments: []
   });
 
@@ -60,6 +61,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
   const [editingCurl, setEditingCurl] = useState(null); // { index: number, value: string }
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [initialFormString, setInitialFormString] = useState("");
+  const [attachmentMode, setAttachmentMode] = useState({}); // href -> 'proxy' | 'broken'
 
   useEffect(() => {
     if (!initialData && currentReporter) {
@@ -105,12 +107,24 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
         }
       } catch (e) { commentsArray = []; }
 
+      let attachmentsArray = [];
+      try {
+        if (typeof initialData.attachments === 'string' && initialData.attachments.startsWith('[')) {
+          attachmentsArray = JSON.parse(initialData.attachments);
+        } else if (Array.isArray(initialData.attachments)) {
+          attachmentsArray = initialData.attachments;
+        } else if (initialData.attachments) {
+          attachmentsArray = [initialData.attachments];
+        }
+      } catch (e) { attachmentsArray = initialData.attachments ? [initialData.attachments] : []; }
+
       const updatedData = {
         ...formData,
         ...initialData,
         curl: curlArray,
         relatedBugs: relatedBugsArray,
         githubPr: githubPrArray,
+        attachments: attachmentsArray,
         comments: commentsArray
       };
       setFormData(updatedData);
@@ -135,6 +149,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
         curl: [],
         githubPr: [],
         relatedBugs: [],
+        attachments: [],
         comments: []
       };
       setFormData(newFormData);
@@ -189,9 +204,10 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
     const finalData = {
       ...formData,
       reporter: isNew ? currentReporter : formData.reporter,
-      curl: formData.curl, 
+      curl: formData.curl,
       relatedBugs: formData.relatedBugs,
       githubPr: formData.githubPr,
+      attachments: (formData.attachments || []).filter(a => a && a.trim() !== ''),
       comments: formData.comments,
       createdAt: isNew ? new Date().toISOString() : formData.createdAt
     };
@@ -499,7 +515,7 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                     <span style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', fontStyle: 'italic' }}>No sister bugs currently linked.</span>
                   )}
                 </div>
-                <CustomDropdown 
+                <CustomDropdown
                   options={bugs
                     .filter(b => b.id !== formData.id && !formData.relatedBugs.includes(b.id))
                     .map(b => `${String(b.id).startsWith("BUG-") ? b.id : `BUG-${String(b.id).split('-')[0].substring(0,4).toUpperCase()}`} - ${b.title}`)
@@ -517,6 +533,56 @@ export default function BugForm({ isOpen, onClose, onSave, settings, initialData
                   placeholder="+ Associate related bug reports..."
                   fullWidth
                 />
+              </div>
+
+              <div style={{ marginTop: '24px', borderTop: '1px solid var(--color-border-light)', paddingTop: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <Paperclip size={12} /> Attachments
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {formData.attachments.map((att, idx) => {
+                    const href = att ? (att.startsWith('http') || att.startsWith('data:') ? att : `https://${att}`) : '';
+                    const mode = attachmentMode[href]; // undefined | 'proxy' | 'broken'
+                    const imgSrc = mode === 'proxy' ? `/api/image-proxy?url=${encodeURIComponent(href)}` : href;
+                    const showImage = !!att && mode !== 'broken';
+                    return (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', backgroundColor: 'var(--color-bg-surface)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input
+                            style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', fontSize: '0.85rem', backgroundColor: 'var(--color-bg-body)', color: 'var(--color-text-main)', outline: 'none' }}
+                            placeholder="https://example.com/image.png"
+                            value={att}
+                            onChange={e => {
+                              const next = [...formData.attachments];
+                              next[idx] = e.target.value;
+                              setFormData({ ...formData, attachments: next });
+                            }}
+                          />
+                          <button type="button" onClick={() => setFormData({ ...formData, attachments: formData.attachments.filter((_, i) => i !== idx) })} style={{ padding: '8px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                        </div>
+                        {att && showImage && (
+                          <img
+                            key={mode || 'direct'}
+                            src={imgSrc}
+                            alt={`Attachment ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '6px', objectFit: 'contain', backgroundColor: 'var(--color-bg-body)', alignSelf: 'flex-start' }}
+                            onError={() => setAttachmentMode(prev => ({
+                              ...prev,
+                              [href]: prev[href] === 'proxy' ? 'broken' : 'proxy'
+                            }))}
+                          />
+                        )}
+                        {att && !showImage && (
+                          <a href={href} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75rem', color: 'var(--color-primary)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
+                            <ExternalLink size={12} /> Open link
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <button type="button" onClick={() => setFormData({ ...formData, attachments: [...formData.attachments, ""] })} style={{ border: '1px dashed #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '0.8rem', color: 'var(--color-text-muted)', backgroundColor: 'var(--color-bg-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Plus size={14} /> Add Attachment URL</button>
+                </div>
               </div>
             </div>
           </div>

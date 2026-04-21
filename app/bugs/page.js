@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
-import { Plus, Edit3, Trash2, Download, Link2, ChevronDown, X, ArrowUpDown } from 'lucide-react';
+import { Plus, Edit3, Trash2, Download, Link2, ChevronDown, X, ArrowUpDown, FileSpreadsheet, FileText, FileType2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useSearchParams } from 'next/navigation';
 import BugForm from '../components/BugForm';
 import BugDetails from '../components/BugDetails';
-import CustomDropdown from '../components/CustomDropdown';
+import WidgetDropdown from '../components/WidgetDropdown';
 import PRToBugModal from '../components/PRToBugModal';
 import { useAuth, capitalizeName } from '../components/AuthProvider';
 import PageHeader from '../components/PageHeader';
@@ -49,6 +50,17 @@ function BugManagement() {
   // Bulk selection state
   const [selectedBugs, setSelectedBugs] = useState(new Set());
   const [showSelectionPopup, setShowSelectionPopup] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!showDownloadMenu) return;
+    const handler = (e) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target)) setShowDownloadMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showDownloadMenu]);
   const [hoveredBugId, setHoveredBugId] = useState(null);
   const [prStatuses, setPrStatuses] = useState({});
   const [selectionMode, setSelectionMode] = useState(false);
@@ -440,8 +452,10 @@ function BugManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedBug)
       });
-      const result = await res.json();
-      if (result.success && result.bug) {
+      const text = await res.text();
+      let result = {};
+      try { result = text ? JSON.parse(text) : {}; } catch { result = { parseError: true, rawBody: text }; }
+      if (res.ok && result.success && result.bug) {
         // Reconcile with server version (may include server-generated fields)
         setBugs(prev => prev.map(b => b.id === bug.id ? result.bug : b));
         if (viewingBug && viewingBug.id === bug.id) {
@@ -451,12 +465,19 @@ function BugManagement() {
         // Revert on failure
         setBugs(prev => prev.map(b => b.id === bug.id ? bug : b));
         if (viewingBug && viewingBug.id === bug.id) setViewingBug(bug);
-        showToast('Update failed. Reverted.');
+        const detail = result?.details || result?.error || result?.rawBody || `HTTP ${res.status}`;
+        showToast(`Update failed: ${detail}`);
+        console.error('Update failed',
+          '\nStatus:', res.status,
+          '\nPayload JSON:', JSON.stringify(updatedBug).slice(0, 1000),
+          '\nResponse body:', text?.slice(0, 2000)
+        );
       }
     } catch (err) {
       setBugs(prev => prev.map(b => b.id === bug.id ? bug : b));
       if (viewingBug && viewingBug.id === bug.id) setViewingBug(bug);
-      showToast('Network error. Reverted.');
+      showToast(`Network error: ${err?.message || 'unknown'}`);
+      console.error('Update network error:', err);
     }
   };
 
@@ -503,22 +524,22 @@ function BugManagement() {
     return `https://${url}`;
   };
 
+  const EXPORT_COLUMNS = ['id', 'title', 'description', 'stepsToReproduce', 'curl', 'githubPr', 'status', 'priority', 'severity', 'project', 'assignee', 'reporter', 'createdAt'];
+
+  const getSortedExportRows = () => [...filteredBugs].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  const getExportFilterSuffix = () => {
+    const hasFilters = selectedProjects.length > 0 || selectedStatus.length > 0 || selectedPriority.length > 0 || selectedAssignee.length > 0 || selectedReporter.length > 0 || globalSearchQuery;
+    return hasFilters ? ' filtered' : '';
+  };
+
   const downloadCSV = () => {
-    // Columns as requested: including steps, curl, and pr
-    const columns = ['id', 'title', 'description', 'stepsToReproduce', 'curl', 'githubPr', 'status', 'priority', 'severity', 'project', 'assignee', 'reporter', 'createdAt'];
-    const header = columns.join(',');
-    
+    const header = EXPORT_COLUMNS.join(',');
     const escape = (val) => {
-      if (Array.isArray(val)) {
-        return `"${val.join(' | ').replace(/"/g, '""')}"`;
-      }
+      if (Array.isArray(val)) return `"${val.join(' | ').replace(/"/g, '""')}"`;
       return `"${String(val || '').replace(/"/g, '""')}"`;
     };
-
-    // Sort by createdAt ASCENDING for CSV as requested
-    const sortedForExport = [...filteredBugs].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-    const rows = sortedForExport.map(bug => columns.map(col => escape(bug[col])).join(','));
+    const rows = getSortedExportRows().map(bug => EXPORT_COLUMNS.map(col => escape(bug[col])).join(','));
     const csv = [header, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -526,8 +547,102 @@ function BugManagement() {
     link.href = url;
     link.download = `bugs_export_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    const hasFilters = selectedProjects.length > 0 || selectedStatus.length > 0 || selectedPriority.length > 0 || selectedAssignee.length > 0 || selectedReporter.length > 0 || globalSearchQuery;
-    showToast(`Exported ${filteredBugs.length}${hasFilters ? ' filtered' : ''} bug(s) to CSV!`);
+    showToast(`Exported ${filteredBugs.length}${getExportFilterSuffix()} bug(s) to CSV!`);
+  };
+
+  const downloadExcel = () => {
+    const sorted = getSortedExportRows();
+    const data = sorted.map(bug => {
+      const row = {};
+      EXPORT_COLUMNS.forEach(col => {
+        const v = bug[col];
+        row[col] = Array.isArray(v) ? v.join(' | ') : (v ?? '');
+      });
+      return row;
+    });
+    const worksheet = XLSX.utils.json_to_sheet(data, { header: EXPORT_COLUMNS });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Bugs');
+    XLSX.writeFile(workbook, `bugs_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast(`Exported ${filteredBugs.length}${getExportFilterSuffix()} bug(s) to Excel!`);
+  };
+
+  const downloadPDF = async () => {
+    const sorted = getSortedExportRows();
+    try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable')
+      ]);
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Bug Report', 40, 40);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated ${new Date().toLocaleString()} · ${sorted.length} bug(s)`, 40, 56);
+
+      autoTable(doc, {
+        startY: 72,
+        head: [['ID', 'Title', 'Status', 'Priority', 'Severity', 'Project', 'Assignee', 'Reporter', 'Created']],
+        body: sorted.map(bug => [
+          getShortId(bug.id),
+          String(bug.title ?? ''),
+          String(bug.status ?? ''),
+          String(bug.priority ?? ''),
+          String(bug.severity ?? ''),
+          String(bug.project ?? ''),
+          toName(bug.assignee),
+          String(bug.reporter ?? ''),
+          bug.createdAt ? new Date(bug.createdAt).toLocaleDateString() : ''
+        ]),
+        styles: { fontSize: 8, cellPadding: 5, overflow: 'linebreak', valign: 'top' },
+        headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', lineWidth: 0.5, lineColor: [226, 232, 240] },
+        bodyStyles: { textColor: [30, 41, 59], lineWidth: 0.25, lineColor: [226, 232, 240] },
+        alternateRowStyles: { fillColor: [250, 251, 252] },
+        columnStyles: {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 65 },
+          3: { cellWidth: 55 },
+          4: { cellWidth: 55 },
+          5: { cellWidth: 85 },
+          6: { cellWidth: 75 },
+          7: { cellWidth: 75 },
+          8: { cellWidth: 65 }
+        },
+        margin: { left: 40, right: 40 },
+        tableWidth: pageWidth - 80,
+        didDrawPage: (data) => {
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth - 40,
+            doc.internal.pageSize.getHeight() - 20,
+            { align: 'right' }
+          );
+        }
+      });
+
+      doc.save(`bugs_export_${new Date().toISOString().split('T')[0]}.pdf`);
+      showToast(`Exported ${filteredBugs.length}${getExportFilterSuffix()} bug(s) to PDF!`);
+    } catch (err) {
+      showToast('Failed to generate PDF.');
+    }
+  };
+
+  const handleDownload = (format) => {
+    if (format === 'excel') downloadExcel();
+    else if (format === 'pdf') downloadPDF();
+    else downloadCSV();
+    setShowDownloadMenu(false);
   };
 
   const toggleFilter = (current, setFunc, value) => {
@@ -609,11 +724,11 @@ function BugManagement() {
         />
 
         <div className="filter-bar-group" style={{ marginBottom: 0 }}>
-          <CustomDropdown label="All Reporter" options={reporterOptions} selected={selectedReporter} onSelect={(val) => toggleFilter(selectedReporter, setSelectedReporter, val)} isMulti />
-          <CustomDropdown label="All Project" options={settings.projects} selected={selectedProjects} onSelect={(val) => toggleFilter(selectedProjects, setSelectedProjects, val)} isMulti />
-          <CustomDropdown label="All Status" options={settings.statuses} selected={selectedStatus} onSelect={(val) => toggleFilter(selectedStatus, setSelectedStatus, val)} isMulti />
-          <CustomDropdown label="All Priority" options={settings.priorities} selected={selectedPriority} onSelect={(val) => toggleFilter(selectedPriority, setSelectedPriority, val)} isMulti />
-          <CustomDropdown label="All Assignee" options={(settings.assignees || []).map(a => typeof a === 'object' ? a.name : a)} selected={selectedAssignee} onSelect={(val) => toggleFilter(selectedAssignee, setSelectedAssignee, typeof val === 'object' ? val.name : val)} isMulti />
+          <WidgetDropdown label="All Reporter" align="left" fullWidth options={reporterOptions} selected={selectedReporter} onSelect={(val) => toggleFilter(selectedReporter, setSelectedReporter, val)} isMulti />
+          <WidgetDropdown label="All Project" align="left" fullWidth options={settings.projects} selected={selectedProjects} onSelect={(val) => toggleFilter(selectedProjects, setSelectedProjects, val)} isMulti />
+          <WidgetDropdown label="All Status" align="left" fullWidth options={settings.statuses} selected={selectedStatus} onSelect={(val) => toggleFilter(selectedStatus, setSelectedStatus, val)} isMulti />
+          <WidgetDropdown label="All Priority" align="left" fullWidth options={settings.priorities} selected={selectedPriority} onSelect={(val) => toggleFilter(selectedPriority, setSelectedPriority, val)} isMulti />
+          <WidgetDropdown label="All Assignee" align="left" fullWidth options={(settings.assignees || []).map(a => typeof a === 'object' ? a.name : a)} selected={selectedAssignee} onSelect={(val) => toggleFilter(selectedAssignee, setSelectedAssignee, typeof val === 'object' ? val.name : val)} isMulti />
 
           <div style={{ flexShrink: 0, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '12px', borderLeft: '1px solid var(--color-border)' }}>
             <button
@@ -625,14 +740,61 @@ function BugManagement() {
               <ArrowUpDown size={15} /> {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
             </button>
 
-            <button
-              className="btn btn-outline"
-              style={{ height: '36px', padding: '0 12px', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: '700', borderRadius: '8px', whiteSpace: 'nowrap' }}
-              onClick={downloadCSV}
-              title="Export to CSV"
-            >
-              <Download size={16} /> Download as CSV
-            </button>
+            <div ref={downloadMenuRef} style={{ position: 'relative' }}>
+              <button
+                className="btn btn-outline"
+                style={{ height: '36px', padding: '0 12px', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: '700', borderRadius: '8px', whiteSpace: 'nowrap' }}
+                onClick={() => setShowDownloadMenu(v => !v)}
+                title="Download report"
+              >
+                <Download size={16} /> Download
+                <ChevronDown size={14} style={{ transform: showDownloadMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+              {showDownloadMenu && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                  minWidth: '200px',
+                  backgroundColor: 'var(--chrome-bg-raised)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '12px',
+                  boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.04)',
+                  padding: '6px', zIndex: 1000
+                }}>
+                  {[
+                    { key: 'excel', label: 'Excel file', Icon: FileSpreadsheet, iconBg: '#d1fae5', iconColor: '#047857' },
+                    { key: 'pdf',   label: 'PDF file',   Icon: FileText,        iconBg: '#fee2e2', iconColor: '#dc2626' },
+                    { key: 'csv',   label: 'CSV file',   Icon: FileType2,       iconBg: '#dcfce7', iconColor: '#16a34a' }
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => { handleDownload(opt.key); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
+                        padding: '8px 10px', borderRadius: '8px',
+                        backgroundColor: 'transparent', border: 'none', cursor: 'pointer',
+                        fontFamily: 'inherit', textAlign: 'left',
+                        transition: 'background-color 0.12s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-bg-body)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{
+                        width: '28px', height: '28px', borderRadius: '6px',
+                        backgroundColor: opt.iconBg, color: opt.iconColor,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <opt.Icon size={16} />
+                      </div>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--color-text-main)' }}>
+                        {opt.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>{/* end filter-bar-group */}
 

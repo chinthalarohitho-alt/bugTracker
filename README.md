@@ -116,3 +116,9 @@ Vercel is the intended target. Required environment variables:
 - `AUTH_URL` or `NEXTAUTH_URL` if your deployment URL differs from the OAuth callback origin
 
 After deploying, run `/api/db-init` once to provision tables on the target database.
+
+
+|| Usage profile	Size per bug	|| Bugs you can store
+Lean — barely touched, 0–2 comments, 1–3 activity entries	~1.5 KB	~280 K
+Average — 5 comments, 10 activity entries	~4.5 KB	~93 K
+Heavy — 30 comments, 50 activity entries	~20 KB	~21 K

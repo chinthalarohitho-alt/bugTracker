@@ -47,21 +47,20 @@ export async function GET() {
 
       await sql`
         INSERT INTO bugs (
-          id, title, description, status, priority, severity, 
+          id, title, description, status, priority, severity,
           reporter, assignee, project, module, start_date, end_date,
           steps_to_reproduce, expected_result, actual_result,
           curl, github_pr, related_bugs,
-          created_at, updated_at, activity_log, comments
+          created_at, updated_at
         ) VALUES (
-          ${bid}, ${bug.title || 'Untitled'}, ${bug.description || ''}, 
-          ${bug.status || 'Open'}, ${bug.priority || 'Medium'}, ${bug.severity || 'Medium'}, 
-          ${bug.reporter || 'System'}, ${bug.assignee || 'Unassigned'}, 
+          ${bid}, ${bug.title || 'Untitled'}, ${bug.description || ''},
+          ${bug.status || 'Open'}, ${bug.priority || 'Medium'}, ${bug.severity || 'Medium'},
+          ${bug.reporter || 'System'}, ${bug.assignee || 'Unassigned'},
           ${bug.project || 'General'}, ${bug.module || 'General'},
           ${bug.startDate || ''}, ${bug.endDate || ''},
           ${bug.stepsToReproduce || ''}, ${bug.expectedResult || ''}, ${bug.actualResult || ''},
           ${JSON.stringify(parseField(bug.curl))}, ${JSON.stringify(parseField(bug.githubPr))}, ${JSON.stringify(parseField(bug.relatedBugs))},
-          ${createdAt}, ${updatedAt}, 
-          ${JSON.stringify(bug.activityLog || [])}, ${JSON.stringify(bug.comments || [])}
+          ${createdAt}, ${updatedAt}
         ) ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           description = EXCLUDED.description,
@@ -77,9 +76,7 @@ export async function GET() {
           curl = EXCLUDED.curl,
           github_pr = EXCLUDED.github_pr,
           related_bugs = EXCLUDED.related_bugs,
-          updated_at = EXCLUDED.updated_at,
-          activity_log = EXCLUDED.activity_log,
-          comments = EXCLUDED.comments
+          updated_at = EXCLUDED.updated_at
       `;
 
       try {

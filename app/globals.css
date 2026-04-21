@@ -1537,7 +1537,7 @@ button {
   --color-bg-surface: #ffffff;
   background-color: #ffffff;
   width: 100%;
-  max-width: 900px;
+  max-width: 950px;
   height: 100vh;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
   display: flex;

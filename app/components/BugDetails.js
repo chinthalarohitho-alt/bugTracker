@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { X, Calendar, User, Tag, AlertCircle, HardDrive, CheckSquare, List, ChevronRight, Edit, Link2, Clock, Trash2, Pencil, Copy, ExternalLink, Eye, Check, XCircle, Save, RotateCcw, MessageSquare, History, ArrowRight, Plus, Trash } from 'lucide-react';
+import { X, User, Tag, AlertCircle, HardDrive, CheckSquare, List, ChevronRight, Edit, Link2, Clock, Pencil, Copy, ExternalLink, Eye, Save, RotateCcw, MessageSquare, History, ArrowRight, Plus, Trash, Paperclip, Image as ImageIcon } from 'lucide-react';
 import CustomDropdown from './CustomDropdown';
 import { capitalizeName } from './AuthProvider';
 
@@ -15,6 +15,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
   const [showMentions, setShowMentions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
   const [prStatuses, setPrStatuses] = useState({});
+  const [attachmentMode, setAttachmentMode] = useState({}); // href -> 'proxy' | 'broken' (undefined = direct)
 
   useEffect(() => {
     setTempValues({});
@@ -23,6 +24,7 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
     setShowConfirmModal(false);
     setPendingNavigation(null);
     setPrStatuses({});
+    setAttachmentMode({});
   }, [bug?.id]);
 
   useEffect(() => {
@@ -135,6 +137,14 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
       else if (typeof bug.githubPr === 'string' && bug.githubPr.startsWith('[')) { try { oldPrs = JSON.parse(bug.githubPr); } catch(e) {} }
       else if (bug.githubPr) oldPrs = [bug.githubPr];
       return JSON.stringify(newVal) !== JSON.stringify(oldPrs);
+    }
+
+    if (key === 'attachments') {
+      let oldAtts = [];
+      if (Array.isArray(bug.attachments)) oldAtts = bug.attachments;
+      else if (typeof bug.attachments === 'string' && bug.attachments.startsWith('[')) { try { oldAtts = JSON.parse(bug.attachments); } catch(e) {} }
+      else if (bug.attachments) oldAtts = [bug.attachments];
+      return JSON.stringify(newVal) !== JSON.stringify(oldAtts);
     }
 
     return newVal !== oldVal;
@@ -317,6 +327,41 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
     const updated = [...current];
     updated[idx] = val;
     updateTempValue('githubPr', updated);
+  };
+
+  const normalizeUrl = (url) => {
+    if (!url) return '';
+    return url.startsWith('http') || url.startsWith('data:') ? url : `https://${url}`;
+  };
+
+  const getAttachmentsArray = () => {
+    if (tempValues.attachments !== undefined) return tempValues.attachments;
+    const raw = bug.attachments;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.startsWith('[')) {
+      try { return JSON.parse(raw); } catch(e) {}
+    }
+    return raw ? [raw] : [];
+  };
+
+  const addAttachment = () => {
+    const current = getAttachmentsArray();
+    const updated = [...current, ''];
+    updateTempValue('attachments', updated);
+    setEditingField(`attachment-${updated.length - 1}`);
+  };
+
+  const removeAttachment = (idx) => {
+    const current = getAttachmentsArray();
+    const updated = current.filter((_, i) => i !== idx);
+    updateTempValue('attachments', updated);
+  };
+
+  const updateAttachmentValue = (idx, val) => {
+    const current = getAttachmentsArray();
+    const updated = [...current];
+    updated[idx] = val;
+    updateTempValue('attachments', updated);
   };
 
   const restoreLogValue = (item, target) => {
@@ -635,6 +680,93 @@ export default function BugDetails({ isOpen, onClose, onEdit, onStatusUpdate, on
                     <div style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', fontStyle: 'italic', padding: '10px' }}>No reproduction CURLs added.</div>
                   )}
                </div>
+            </div>
+
+            {/* ATTACHMENTS SECTION */}
+            <div style={{ backgroundColor: 'var(--color-bg-body)', padding: '24px', borderRadius: '16px', marginBottom: '40px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h4 className="meta-label" style={{ color: 'var(--color-text-muted)', fontWeight: '700', margin: 0 }}>
+                  <Paperclip size={14} /> Attachments
+                </h4>
+                <button onClick={addAttachment} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '700', background: '#0f172a', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>
+                  <Plus size={12} /> Add
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+                {getAttachmentsArray().map((att, idx) => {
+                  const href = normalizeUrl(att);
+                  const mode = attachmentMode[href]; // undefined | 'proxy' | 'broken'
+                  const imgSrc = mode === 'proxy' ? `/api/image-proxy?url=${encodeURIComponent(href)}` : href;
+                  const showImage = !!att && mode !== 'broken';
+                  return (
+                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', backgroundColor: 'var(--color-bg-surface)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
+                      {editingField === `attachment-${idx}` ? (
+                        <input
+                          autoFocus
+                          style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--color-text-main)', outline: 'none', fontSize: '0.8rem' }}
+                          value={att}
+                          placeholder="https://example.com/image.png"
+                          onChange={(e) => updateAttachmentValue(idx, e.target.value)}
+                          onBlur={() => setEditingField(null)}
+                          onKeyDown={(e) => { if(e.key === 'Enter') setEditingField(null); }}
+                        />
+                      ) : (
+                        <>
+                          {!att ? (
+                            <div style={{ width: '100%', height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-body)', borderRadius: '8px', color: 'var(--color-text-light)', fontSize: '0.75rem', fontStyle: 'italic' }}>Empty attachment</div>
+                          ) : showImage ? (
+                            <a href={href} target="_blank" rel="noopener noreferrer" title={att} style={{ display: 'block', lineHeight: 0 }}>
+                              <img
+                                key={mode || 'direct'}
+                                src={imgSrc}
+                                alt={`Attachment ${idx + 1}`}
+                                referrerPolicy="no-referrer"
+                                style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px', backgroundColor: 'var(--color-bg-body)', display: 'block' }}
+                                onError={() => setAttachmentMode(prev => ({
+                                  ...prev,
+                                  [href]: prev[href] === 'proxy' ? 'broken' : 'proxy'
+                                }))}
+                              />
+                            </a>
+                          ) : (
+                            <a href={href} target="_blank" rel="noopener noreferrer" title={att} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '140px', background: 'var(--color-bg-body)', borderRadius: '8px', color: 'var(--color-text-main)', textDecoration: 'none', gap: '6px', fontSize: '0.8rem', fontWeight: '600', padding: '12px', textAlign: 'center', wordBreak: 'break-all' }}>
+                              <Link2 size={16} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{att}</span>
+                            </a>
+                          )}
+                        </>
+                      )}
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          {showImage ? <ImageIcon size={12} /> : <Link2 size={12} />}
+                          {showImage ? 'Image' : 'Link'} {idx + 1}
+                        </span>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {att && (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="icon-action-btn"
+                              style={{ padding: '2px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}
+                              title="Open in new tab"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
+                          <button onClick={() => setEditingField(`attachment-${idx}`)} className="icon-action-btn" style={{ padding: '2px' }} title="Edit URL"><Pencil size={12} /></button>
+                          <button onClick={() => removeAttachment(idx)} className="icon-action-btn" style={{ color: '#ef4444', padding: '2px' }} title="Remove"><Trash size={12} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {getAttachmentsArray().length === 0 && (
+                  <div style={{ gridColumn: '1 / -1', fontSize: '0.8rem', color: 'var(--color-text-light)', fontStyle: 'italic', padding: '10px' }}>No attachments added.</div>
+                )}
+              </div>
             </div>
 
             <style jsx>{` .hover-editable-field:hover { background-color: color-mix(in srgb, var(--color-text-main) 6%, var(--color-bg-surface)); border-radius: 4px; outline: 1px dashed var(--color-border); } `}</style>
